@@ -1,0 +1,11 @@
+Package: rswat
+Title: An R package for SWAT+ Input/Output File Management
+Version: 0.0.0.9000
+Authors@R: 
+    person("Dean", "Koch", , "dkoch@ualberta.ca", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-8849-859X"))
+Description: Load, edit, and write SWAT+ project files directly from R
+License: use_mit_license()
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.1
