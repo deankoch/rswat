@@ -22,11 +22,27 @@
 # config files using "y" and "n" to represent logical (called in rswat_scan_txt, rswat_rtable_txt)
 .rswat_gv_logical_as_yn = function() {
 
-  c('print.prt', 'flo_con.dtl', 'lum.dtl', 'res_rel.dtl', 'scen_lu.dtl')
+  c('print.prt',
+    'flo_con.dtl',
+    'lum.dtl',
+    'res_rel.dtl',
+    'scen_lu.dtl')
 }
 
 # files to ignore in default rswat_load(). Note that 'log' type files are always ignored
 .rswat_gv_ignore = function() {
 
-  c('decision_table', 'output', 'gwflow')
+  c('decision_table',
+    'output',
+    'gwflow')
 }
+
+
+# attributes to display in default calls to rswat_files
+.rswat_gv_cio_show = function() c('file',
+                                  'loaded',
+                                  'group',
+                                  'n_table',
+                                  'n_line',
+                                  'n_var',
+                                  'size')
