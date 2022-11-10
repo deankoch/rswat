@@ -49,6 +49,60 @@ rswat_validate_fpath = function(p, extension=NA, p_name='p') {
 }
 
 
+#' Convert between representations of date
+#'
+#' If `d` is a Date vector, the function returns a data frame with the same number of rows,
+#' and attributes: Julian date ('j' ) and year ('yr'). Otherwise the function assumes `d`
+#' is a data frame (or matrix, or list) of this form and it does the inverse, returning a vector
+#' of Dates. `d` can also be a single integer vector c(j, yr)
+#'
+#' @param d either a Date object or an integer vector or list of them (or a matrix or dataframe)
+#'
+#' @return Either a Date vector or a data frame of j, yr, values
+#' @export
+#'
+#' @examples
+#' # convert from integers to Dates
+#' n_test = 10
+#' date_as_int = lapply(seq(n_test), \(x) c(j=sample.int(365, 1), yr=1950 + sample.int(100, 1)))
+#' date_result = rswat_date_conversion(date_as_int)
+#' str(date_result)
+#'
+#' # and back again
+#' int_result = rswat_date_conversion(date_result)
+#' all.equal(date_as_int, int_result)
+#'
+#' # input can be data frame
+#' date_as_df = data.frame(do.call(rbind, date_as_int))
+#' all.equal(date_result, rswat_date_conversion(date_as_df))
+#'
+rswat_date_conversion = function(d) {
+
+  # handle non-date inputs
+  if( !is(d, 'Date') )
+  {
+    # coerce vector, matrix and data frame to list
+    if( is.matrix(d) ) d = as.data.frame(d)
+    if( is.data.frame(d) ) d = apply(d, 1, identity, simplify=FALSE)
+    if( !is.list(d) ) d = list(d)
+
+    # return the dates in a list
+    return( as.Date(sapply(d, \(x) paste0(x[1], '-', x[2])), format='%j-%Y') )
+  }
+
+  # handle date inputs
+  out_list = lapply(d, \(x) {
+
+    c(j = as.integer(as.character(x, format='%j')),
+      yr = as.integer(as.character(x, format='%Y')))
+    }
+  )
+
+  return(out_list)
+}
+
+
+
 #' Scan a SWAT+ project directory
 #'
 #' Looks for files in the supplied `swat_dir` and builds a data frame listing them
@@ -81,7 +135,8 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
                         n_table = integer(0), # number of tables identified in the file
                         n_skip = integer(0), # number of lines skipped in parsing the file
                         msg = character(0), # the first line of the file (a comment)
-                        path = character(0)) # the absolute path to the file
+                        path = character(0), # the absolute path to the file
+                        hash_load = character(0)) # the file hash at the time of loading
   }
 
   # if no directory supplied, we are finished
@@ -91,9 +146,10 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   cio_new = data.frame(file=list.files(swat_dir)) |>
     dplyr::mutate( known = FALSE ) |>
     dplyr::mutate( loaded = FALSE ) |>
+    dplyr::mutate( type = 'unknown' ) |>
     dplyr::mutate( path = file.path(swat_dir, file) ) |>
     dplyr::anti_join( cio_df, by=c('file') ) |>
-    dplyr::full_join( cio_df, by=c('file', 'known', 'loaded', 'path') ) |>
+    dplyr::full_join( cio_df, by=c('file', 'known', 'loaded', 'type', 'path') ) |>
     dplyr::mutate( exists = file.exists(path) ) |>
     dplyr::mutate( known = known | !is.na(type) )
 
@@ -193,8 +249,6 @@ rswat_scan_txt = function(txt=NULL, f=NULL, delim='\\s+')
   line_df[['file']] = f
   return(line_df)
 }
-
-
 
 
 #' Identify tables in SWAT+ config text
@@ -390,18 +444,23 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL)
 #' `line_df` after the `rswat_ftable_txt` call but prior to this function call (this
 #' happens in `rswat` methods ...)
 #'
-#'@param line_df data frame of the form returned by `rswat_ftable_txt`
+#' @param line_df data frame of the form returned by `rswat_ftable_txt`
+#' @param table_num integer, the table number to load (or `NULL` to load all)
+#' @param quiet logical, indicates to suppress console messages
 #'
 #' @return data frame, a copy of `line_df` with the 'nprec' column updated
 #' @export
-rswat_nprec_txt = function(line_df, table_num=NULL)
+rswat_nprec_txt = function(line_df, table_num=NULL, quiet=FALSE)
 {
-  # recursive call to return all tables in a list
+  # find all available table numbers
   table_num_vec = line_df[['table']]
   all_num = table_num_vec |> unique(na.rm=TRUE) |> sort()
   if( is.null(table_num) )
   {
-    rswat_nprec_result = lapply(all_num, \(tn) rswat_nprec_txt(subset(line_df, table==tn), tn))
+    # recursive call to return all tables in a list if no table number specified
+    rswat_nprec_result = lapply(all_num, \(tn) {
+      rswat_nprec_txt(subset(line_df, table==tn), tn, quiet)
+    })
     return(do.call(rbind, rswat_nprec_result))
   }
 
@@ -440,7 +499,7 @@ rswat_nprec_txt = function(line_df, table_num=NULL)
     nprec_bycol = lapply(nprec_bycol, \(n) rep(max(n), length(n)))
     f = line_df[['file']][1]
     msg_file = paste0('in file ', f, ', table ', table_num, ':')
-    warning(paste(msg_file, 'inconsistent precision within columns (using maximum)'))
+    if(!quiet) warning(paste(msg_file, 'inconsistent precision within columns (using maximum)'))
   }
 
   # write the nprec attribute and finish
