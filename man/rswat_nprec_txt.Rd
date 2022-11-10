@@ -4,10 +4,14 @@
 \alias{rswat_nprec_txt}
 \title{Determine precision of numeric columns in a SWAT+ config file}
 \usage{
-rswat_nprec_txt(line_df, table_num = NULL)
+rswat_nprec_txt(line_df, table_num = NULL, quiet = FALSE)
 }
 \arguments{
 \item{line_df}{data frame of the form returned by \code{rswat_ftable_txt}}
+
+\item{table_num}{integer, the table number to load (or \code{NULL} to load all)}
+
+\item{quiet}{logical, indicates to suppress console messages}
 }
 \value{
 data frame, a copy of \code{line_df} with the 'nprec' column updated
