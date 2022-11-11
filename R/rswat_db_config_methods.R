@@ -8,7 +8,7 @@
 rswat_db$methods( list(
 
   # opens a batch of config files in a loop
-  open_config_batch = function(f=NULL, ignore=.rswat_gv_ignore(), quiet=FALSE) {
+  open_config_batch = function(f=NULL, ignore=.rswat_gv_exclude(), quiet=FALSE) {
 
     # read file.cio and refresh files list
     parse_file_cio(refresh=TRUE, quiet=quiet)
@@ -31,9 +31,9 @@ rswat_db$methods( list(
     n_files = length(f)
     if(n_files > 0)
     {
-      # removed stored data that will be replaced below
+      # remove any existing data that would be replaced below
       line_df <<- line_df[!(line_df[['file']] %in% f),]
-      df_stor <<- df_stor[!(names(df_stor) %in% f)]
+      stor_df <<- stor_df[!(names(stor_df) %in% f)]
 
       # build console progress messages with fixed width, and initialize a progress bar object
       if(!quiet)
@@ -96,7 +96,7 @@ rswat_db$methods( list(
 
     # update OS file info
     if(update_stats) stats_cio_df()
-    if(output) return(df_stor[[f]])
+    if(output) return(stor_df[[f]])
   },
 
   # get a list of data frames representing the parameters in a SWAT+ config file
@@ -111,7 +111,7 @@ rswat_db$methods( list(
     }
 
     # return cached output if available and when refresh not requested
-    if( output & !refresh & ( f %in% names(df_stor) ) ) return(df_stor[[f]])
+    if( output & !refresh & ( f %in% names(stor_df) ) ) return(stor_df[[f]])
 
     # `f` must be listed in `cio_df`. Grab the file path from there
     read_path = cio_df |> dplyr::filter(file==f) |> dplyr::select(path) |> as.character()
@@ -120,7 +120,7 @@ rswat_db$methods( list(
 
     # count all available table number(s) then load tables in a loop
     table_num = line_df_temp[['table']] |> unique(na.rm=TRUE) |> sort()
-    df_stor[[f]] <<- lapply(table_num, \(tn) rswat_rtable_txt(line_df_temp, read_path, tn) )
+    stor_df[[f]] <<- lapply(table_num, \(tn) rswat_rtable_txt(line_df_temp, read_path, tn) )
 
     # fix for weird table structure in weather generators file
     if(f == 'weather-wgn.cli') table_num = fix_weather_tables()
@@ -132,7 +132,7 @@ rswat_db$methods( list(
       is_table = line_df_temp[['table']] == tn
 
       # assign variable 'name' based on field order and header spacing
-      nm_header = names(df_stor[[f]][[tn]])
+      nm_header = names(stor_df[[f]][[tn]])
       n_col = line_df_temp[['field_num']][is_table] |> max() |> pmin(length(nm_header))
       idx_colj = lapply(seq(n_col), \(j) which(line_df_temp[['field_num']][is_table] == j))
       header_j = lapply(seq(n_col), \(j) rep(nm_header[j], length(idx_colj[[j]])) )
@@ -141,7 +141,7 @@ rswat_db$methods( list(
       line_df_temp[['name']][is_table][ unlist(idx_colj) ] <<- unlist(header_j)
     }
 
-    if(output) return(df_stor[[f]])
+    if(output) return(stor_df[[f]])
   },
 
   # get data frame summarizing the text field data, copying comment to cio_df
@@ -170,9 +170,10 @@ rswat_db$methods( list(
   get_config_txt = function(f, n_line=Inf, output=TRUE) {
 
     # `f` must be listed in `cio_df`. Grab the file path from there
-    idx_cio = which( cio_df[['file']] == f )
-    read_path = cio_df[['path']][idx_cio]
     msg_refresh = paste('file', f, 'not found. Try calling rswat() again to scan for new files')
+    idx_cio = which( cio_df[['file']] == f )
+    if( length(idx_cio) == 0 ) stop(msg_refresh)
+    read_path = cio_df[['path']][idx_cio]
     if( is.na(read_path) ) stop(msg_refresh)
 
     # calculate the file hash and compare with previous (if any)
@@ -198,9 +199,9 @@ rswat_db$methods( list(
   parse_file_cio = function(refresh=TRUE, quiet=FALSE) {
 
     # check that the file is loaded
-    is_loaded = 'file.cio' %in% names(df_stor)
+    is_loaded = 'file.cio' %in% names(stor_df)
     if(!is_loaded) stop('file.cio not loaded. Try calling open_config_file first')
-    file_cio_df = df_stor[['file.cio']][[1]]
+    file_cio_df = stor_df[['file.cio']][[1]]
 
     # load up to date list of existing files
     existing_files = cio_df[['file']][ cio_df[['exists']] ]
@@ -262,7 +263,7 @@ rswat_db$methods( list(
     if( length(all_num) == 0 ) stop('table data not found. Have you loaded weather-wgn.cli?')
 
     # split file by table index, producing a vector of line numbers for each one
-    table_dat = df_stor[['weather-wgn.cli']]
+    table_dat = stor_df[['weather-wgn.cli']]
     table_idx_list = split(seq(table_num_vec), table_num_vec)
 
     # put the rows in same order as in file (table ids are negative)
@@ -275,7 +276,7 @@ rswat_db$methods( list(
     attr(table_merged, 'rswat_table_num') = table_num_new
 
     # copy restructured list back to file contents storage
-    df_stor[['weather-wgn.cli']] <<- c(table_dat[idx_nomerge], list(table_merged))
+    stor_df[['weather-wgn.cli']] <<- c(table_dat[idx_nomerge], list(table_merged))
 
     # replace old table numbers with merged ones and update flags
     table_idx_merged = do.call(c, table_idx_list[idx_merge]) |> unname()

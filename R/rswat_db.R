@@ -11,7 +11,7 @@
 #' files listed in this data frame can be loaded.
 #'
 #' When a file `f` is loaded, it is parsed as a list of data frames which are copied to
-#' `df_stor[[f]]`. Every table loaded in this way is also copied to a large data frame
+#' `stor_df[[f]]`. Every table loaded in this way is also copied to a large data frame
 #' `line_df`, which has a row for each white-space delimited field (including headers),
 #' from all loaded files. A third copy of the data is stored in `txt[[f]]`, which caches
 #' the line-by-line text of the file as a vector of character strings.
@@ -45,6 +45,13 @@
 #' makes it easier to maintain a database about SWAT+ parameters that is visible to
 #' all `rswat` functions.
 #'
+#' In the code for methods, a special assignment operator (see `?<<-`) is used
+#' extensively to write to fields of the parent rswat_db object. When we need to reference
+#' this object explicitly (like in arguments to external function calls), we use `.self`.
+#'
+#' In other functions (those which aren't rswat_db methods) we reference the rswat_db object
+#' via the parameter `.db`, which by default points to `.rswat_db`.
+#'
 #' @name rswat_db
 #' @import methods
 #' @exportClass rswat_db
@@ -55,7 +62,7 @@
 #' @field line_df data frame, (internal use) information about all file contents
 #' @field line_df_temp data frame, (internal use) information about specific file contents
 #' @field txt list of character vectors, (internal use) file contents as plain text
-#' @field df_stor nested list of data frames, (internal use) file contents as tables
+#' @field stor_df nested list of data frames, (internal use) file contents as tables
 #'
 rswat_db = setRefClass('rswat_db',
 
@@ -65,7 +72,7 @@ rswat_db = setRefClass('rswat_db',
                 line_df = 'data.frame',
                 line_df_temp = 'data.frame',
                 txt = 'list',
-                df_stor = 'list'),
+                stor_df = 'list'),
 
   methods = list(
 
@@ -87,7 +94,7 @@ rswat_db = setRefClass('rswat_db',
 
       # initialize empty storage list for file contents
       txt <<- list()
-      df_stor <<- list()
+      stor_df <<- list()
 
       callSuper(...)
     },
@@ -100,139 +107,139 @@ rswat_db = setRefClass('rswat_db',
     # executable path getter, setter, and validator
     get_exe_path = function() exe_path,
     set_exe_path = function(p) exe_path <<- rswat_validate_fpath(p,'.exe', 'exe_path'),
-    check_exe_path = function(p=exe_path) invisible(rswat_validate_fpath(p,'.exe', 'exe_path'))
+    check_exe_path = function(p=exe_path) invisible(rswat_validate_fpath(p,'.exe', 'exe_path')),
 
+    # file info getter with options for subsets
+    get_cio_df = function(what=NULL, f=NULL) {
+
+      # by default returns all info
+      if( is.na(swat_dir) ) stop('project directory must be assigned first')
+      if( is.null(f) ) f = cio_df[['file']]
+      if( is.null(what) ) what = names(cio_df)
+      return( cio_df[cio_df[['file']] %in% f, names(cio_df) %in% what] )
+    },
+
+    # SWAT+ data frames getter
+    get_stor_df = function(f)
+    {
+      # halt if any of the requested files hasn't been loaded yet
+      is_loaded = f %in% names(stor_df)
+      missing_msg = paste('files ', paste(paste(f[!is_loaded], collapse=', ')), 'not found')
+      if( !all(is_loaded) ) stop(missing_msg)
+
+      # return from single file case
+      if( length(f) == 1 ) return(stor_df[[f]])
+
+      # return multiple files as named list
+      return(stor_df[f])
+    },
+
+    # console printout
+    show = function() {
+
+      # check for loaded files
+      dates_loaded = FALSE
+      config_files_msg = NULL
+      files_loaded = cio_df[['file']][ cio_df[['loaded']] == TRUE ]
+      file_cio_loaded = ifelse(length(files_loaded) == 0, FALSE, 'file.cio' %in% files_loaded)
+      if(file_cio_loaded)
+      {
+        # build a message about files loaded
+        n_known = sum(cio_df[['known']])
+        n_loaded = sum(cio_df[['loaded']])
+        n_group = length(unique(cio_df[['group']]))
+        config_files_msg = paste0(n_known, ' config files in ',
+                                  n_group, ' groups (',
+                                  n_loaded, ' loaded)')
+
+        # check for simulation dates among loaded files
+        dates_loaded = all(c(sim='time.sim', prt='print.prt') %in% files_loaded)
+
+        # build a message about simulation dates
+        dates_msg = NULL
+        if(dates_loaded)
+        {
+          # fetch the dates (not an rswat_db method, so we pass a reference to calling frame)
+          dates = rswat_time(.db=.self)
+          step_msg = paste(' days,', dates[['step']], 'timestep)')
+          n_sim = paste0('(', difftime(dates[['sim']][2], dates[['sim']][1], units='days'), step_msg)
+          n_prt = paste0('(', difftime(dates[['prt']][2], dates[['prt']][1], units='days'), ' days)')
+
+          # messages about simulation dates and printed output
+          dates_sim_msg = paste(paste(paste0('[', dates[['sim']], ']'), collapse=' to '), n_sim)
+          dates_prt_msg = paste(paste(paste0('[', dates[['prt']], ']'), collapse=' to '), n_prt)
+        }
+      }
+
+      # different output depending on steps being completed
+      swat_dir_msg = '•  directory: not assigned\n'
+      exe_path_msg = '•  simulator: not assigned\n'
+      time_sim_msg = '•   time.sim: not loaded\n'
+      file_cio_msg = '•   file.cio: not loaded\n'
+      print_prt_msg = '•  print.prt: not loaded\n'
+      if(!is.na(swat_dir)) swat_dir_msg = paste('✓  directory:', swat_dir, '\n')
+      if(!is.na(exe_path)) exe_path_msg = paste('✓  simulator:', exe_path, '\n')
+      if(file_cio_loaded) file_cio_msg = paste('✓   file.cio:', config_files_msg, '\n')
+      if(dates_loaded)
+      {
+        time_sim_msg = paste('✓   time.sim:', dates_sim_msg, '\n')
+        print_prt_msg = paste('✓  print.prt:', dates_prt_msg, '\n')
+      }
+
+      hbreak_msg = '  -----------'
+      message('rswat')
+      message(hbreak_msg)
+      cat(paste0(swat_dir_msg, exe_path_msg))
+      message(hbreak_msg)
+      cat(paste0(time_sim_msg, print_prt_msg))
+      message(hbreak_msg)
+      cat(file_cio_msg)
+    },
+
+
+    # refresh cio_df by scanning project directory and labeling files based on their extension
+    refresh_cio_df = function() {
+
+      if(is.na(swat_dir)) stop('project directory must be assigned first')
+      new_cio_df = rswat_scan_dir(swat_dir, cio_df)
+      cio_df <<- new_cio_df
+      rownames(cio_df) <<- seq(nrow(cio_df))
+    },
+
+    # append metadata for any loaded files to cio_df
+    stats_cio_df = function() {
+
+      # append metadata for any loaded files
+      known_files = cio_df[['file']]
+      is_loaded = cio_df[['loaded']]
+      if( any(is_loaded) )
+      {
+        # identify relevant rows of linedf then compute stats by file
+        is_relevant = line_df[['file']] %in% known_files[is_loaded]
+        linedf_stats = line_df[is_relevant,] |> dplyr::group_by(file, table) |>
+          dplyr::summarize(n_table = dplyr::n_distinct(table, na.rm=TRUE),
+                           n_var = dplyr::n_distinct(name, na.rm=TRUE),
+                           n_line = diff(range(line_num)),
+                           n_skip = dplyr::n_distinct(line_num[skipped]),
+                           .groups = 'drop_last') |>
+          dplyr::summarize(n_table = sum(n_table),
+                           n_var = sum(n_var),
+                           n_line = sum(n_line),
+                           n_skip = sum(n_skip)) |> as.data.frame()
+
+        # update old fields
+        nm_stats = c('n_line', 'n_skip', 'n_table', 'n_var')
+        idx_update = match(linedf_stats[['file']], known_files)
+        cio_df[idx_update, nm_stats] <<- linedf_stats[nm_stats]
+        rownames(cio_df) <<- seq(nrow(cio_df))
+      }
+    }
   )
 )
 
 # define some more simple methods for rswat objects
 rswat_db$methods( list(
 
-  # console printout
-  show = function() {
 
-    # check for loaded files
-    dates_loaded = FALSE
-    config_files_msg = NULL
-    files_loaded = cio_df[['file']][ cio_df[['loaded']] == TRUE ]
-    file_cio_loaded = ifelse(length(files_loaded) == 0, FALSE, 'file.cio' %in% files_loaded)
-    if(file_cio_loaded)
-    {
-      # build a message about files loaded
-      n_known = sum(cio_df[['known']])
-      n_loaded = sum(cio_df[['loaded']])
-      n_group = length(unique(cio_df[['group']]))
-      config_files_msg = paste0(n_known, ' config files in ',
-                                n_group, ' groups (',
-                                n_loaded, ' loaded)')
-
-      # check for simulation dates among loaded files
-      dates_loaded = all(c(sim='time.sim', prt='print.prt') %in% files_loaded)
-
-      # build a message about simulation dates
-      dates_msg = NULL
-      if(dates_loaded)
-      {
-        # fetch the dates
-        dates = rswat_time()
-        n_sim = paste0('(', difftime(dates[['sim']][2], dates[['sim']][1], units='days'), ' days)')
-        n_prt = paste0('(', difftime(dates[['prt']][2], dates[['prt']][1], units='days'), ' days)')
-
-        # messages about simulation dates and printed output
-        dates_sim_msg = paste(paste(paste0('[', dates[['sim']], ']'), collapse=' to '), n_sim)
-        dates_prt_msg = paste(paste(paste0('[', dates[['prt']], ']'), collapse=' to '), n_prt)
-      }
-    }
-
-    # different output depending on steps being completed
-    swat_dir_msg = '•  directory: not assigned\n'
-    exe_path_msg = '•  simulator: not assigned\n'
-    time_sim_msg = '•   time.sim: not loaded\n'
-    file_cio_msg = '•   file.cio: not loaded\n'
-    print_prt_msg = '•  print.prt: not loaded\n'
-    if(!is.na(swat_dir)) swat_dir_msg = paste('✓  directory:', swat_dir, '\n')
-    if(!is.na(exe_path)) exe_path_msg = paste('✓  simulator: ', exe_path, '\n')
-    if(file_cio_loaded) file_cio_msg = paste('✓   file.cio:', config_files_msg, '\n')
-    if(dates_loaded)
-    {
-      time_sim_msg = paste('✓   time.sim:', dates_sim_msg, '\n')
-      print_prt_msg = paste('✓  print.prt:', dates_prt_msg, '\n')
-    }
-
-    hbreak_msg = '------------- - - - - - -'
-    message('rswat')
-    message(hbreak_msg)
-    cat(paste0(swat_dir_msg, exe_path_msg))
-    message(hbreak_msg)
-    cat(paste0(time_sim_msg, print_prt_msg))
-    message(hbreak_msg)
-    cat(file_cio_msg)
-
-    # cat(paste0('rswat\n',
-    #            '-------------\n',
-    #            swat_dir_msg,
-    #            exe_path_msg,
-    #            '-------------\n',
-    #            time_sim_msg,
-    #            print_prt_msg,
-    #            '-------------\n',
-    #            file_cio_msg))
-  },
-
-  # file info getter with options for subsets
-  get_cio_df = function(what=NULL, f=NULL) {
-
-    # by default returns all info
-    if( is.na(get_swat_dir()) ) stop('project directory must be assigned first')
-    if( is.null(f) ) f = cio_df[['file']]
-    if( is.null(what) ) what = names(cio_df)
-    return( cio_df[cio_df[['file']] %in% f, names(cio_df) %in% what] )
-  },
-
-  # refresh cio_df by scanning project directory and labeling files based on their extension
-  refresh_cio_df = function() {
-
-    if(is.na(swat_dir)) stop('project directory must be assigned first')
-    new_cio_df = rswat_scan_dir(swat_dir, cio_df)
-    cio_df <<- new_cio_df
-    rownames(cio_df) <<- seq(nrow(cio_df))
-  },
-
-  # append metadata for any loaded files to cio_df
-  stats_cio_df = function() {
-
-    # append metadata for any loaded files
-    known_files = cio_df[['file']]
-    is_loaded = cio_df[['loaded']]
-    if( any(is_loaded) )
-    {
-      # identify relevant rows of linedf then compute stats by file
-      is_relevant = line_df[['file']] %in% known_files[is_loaded]
-      linedf_stats = line_df[is_relevant,] |> dplyr::group_by(file, table) |>
-        dplyr::summarize(n_table = dplyr::n_distinct(table, na.rm=TRUE),
-                         n_var = dplyr::n_distinct(name, na.rm=TRUE),
-                         n_line = diff(range(line_num)),
-                         n_skip = dplyr::n_distinct(line_num[skipped]),
-                         .groups = 'drop_last') |>
-        dplyr::summarize(n_table = sum(n_table),
-                         n_var = sum(n_var),
-                         n_line = sum(n_line),
-                         n_skip = sum(n_skip)) |> as.data.frame()
-
-      # update old fields
-      nm_stats = c('n_line', 'n_skip', 'n_table', 'n_var')
-      idx_update = match(linedf_stats[['file']], known_files)
-      cio_df[idx_update, nm_stats] <<- linedf_stats[nm_stats]
-      rownames(cio_df) <<- seq(nrow(cio_df))
-    }
-  }
 ))
 
-
-
-
-
-# # methods for compiling info on project directory
-# rswat_db$methods( list(
-#
-# ))
