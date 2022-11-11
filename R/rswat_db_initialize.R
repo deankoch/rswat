@@ -10,7 +10,10 @@
 #' nothing but has the side effect (when successful) of printing information about
 #' `.rswat_db` to the console (unless `quiet=TRUE`).
 #'
-#' @include rswat_db.R rswat_db_config_methods.R rswat_utils.R rswat_defaults.R rswat.R
+#' @include rswat_db.R
+#' @include rswat.R rswat_utils.R rswat_defaults.R
+#' @include rswat_db_config_methods.R rswat_db_config_methods_helpers.R
+#' @include rswat_write_methods.R rswat_write_methods_helpers.R
 #'
 #' @param quiet logical, indicates to suppress console messages
 #' @param .db rswat_db object, for internal use
@@ -31,7 +34,7 @@ rswat_check = function(quiet=FALSE, .db=.rswat_db)
 #'
 #' The code below defines an rswat_db reference class object to store data and information
 #' about the currently loaded SWAT+ project. The class, its methods, and any dependent
-#' functions must be defined first. Make sure that all R files appear in the 'include' tag
+#' functions must be defined first. Make sure that all R files appear in the 'include' tags
 #' above. This ensures the R files are collated in the right order.
 
 .rswat_db = rswat_db$new()
