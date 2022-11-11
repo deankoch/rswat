@@ -2,7 +2,7 @@
 % Please edit documentation in R/rswat_utils.R
 \name{rswat_date_conversion}
 \alias{rswat_date_conversion}
-\title{Convert between representations of date}
+\title{Convert between two representations of date}
 \usage{
 rswat_date_conversion(d)
 }

@@ -4,19 +4,40 @@
 \alias{rswat_time}
 \title{Get or set the SWAT+ simulation time parameters}
 \usage{
-rswat_time(sim = NULL, prt = NULL, step = NULL, .db = .rswat_db)
+rswat_time(sim = NULL, prt = NULL, step = NULL, step_prt = 1L, .db = .rswat_db)
+}
+\arguments{
+\item{sim}{vector of start/end dates for the simulation (or NULL)}
+
+\item{prt}{vector of start/end dates for the printed output (or NULL)}
+
+\item{step}{simulation time step size: one of 'daily', 'twice_daily', 'hourly'}
+
+\item{step_prt}{integer, output step size (in days)}
+
+\item{.db}{rswat_db object, for internal use}
+}
+\value{
+a list containing the currently assigned date ranges and step size
 }
 \description{
-WORK IN PROGRESS
-}
-\details{
 Helper function for reading or setting up parameters SWAT+ parameters
 controlling the time steps executed by the simulator, as well as the
 requested time steps (and variables) to print to output files.
-
+}
+\details{
 These parameters are located in two files:
 \itemize{
 \item "time.sim" controls the simulation start date, end date, and step size
-\item "print.prt" controls which output variables get printed
+\item "print.prt" controls which output variables get printed, and over which period
 }
+
+Currently the function just reports the existing dates, along with a
+text string indicating the simulation time step.
+
+#' WORK IN PROGRESS
+TODO: add options for toggling different output files
+TODO: add write functionality
+TODO: incorporate warm-up period
+TODO: validate time intervals
 }

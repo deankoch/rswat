@@ -13,7 +13,7 @@ An object of class \code{rswat_db} of length 1.
 \description{
 The code below defines an rswat_db reference class object to store data and information
 about the currently loaded SWAT+ project. The class, its methods, and any dependent
-functions must be defined first. Make sure that all R files appear in the 'include' tag
+functions must be defined first. Make sure that all R files appear in the 'include' tags
 above. This ensures the R files are collated in the right order.
 }
 \keyword{datasets}

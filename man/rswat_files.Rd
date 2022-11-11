@@ -8,7 +8,7 @@ rswat_files(
   f = NULL,
   what = .rswat_gv_cio_show(),
   type = "config",
-  include = "loaded",
+  include = "known",
   refresh = FALSE,
   .db = .rswat_db
 )
@@ -30,17 +30,8 @@ rswat_files(
 the requested data frame or vector, a subset of \code{cio}
 }
 \description{
-Convenience function for grabbing subsets of the file information data frame
-\code{cio} located at \code{.rswat[['dir']][[swat_dir]][['cio']]}.
+TODO: details here
 }
 \details{
-Call this without arguments to get a complete copy of the \code{cio} data frame
-Specify the column(s) to return with \code{what}. When \code{what} is a single name, the
-function returns the requested data in a vector; When \code{what} is a vector, it
-returns a data frame. When \code{what=NULL}, all columns are returned.
-
-\code{refresh=TRUE} causes the SWAT+ directory to be scanned for changes
-and \code{cio} rebuilt with the latest file information.
-
 \code{f} filters rows by specifying file name(s) (default \code{NULL} selects all),
 }

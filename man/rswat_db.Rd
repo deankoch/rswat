@@ -16,7 +16,7 @@ with one row per file and various attributes to describe and categorize the file
 files listed in this data frame can be loaded.
 
 When a file \code{f} is loaded, it is parsed as a list of data frames which are copied to
-\code{df_stor[[f]]}. Every table loaded in this way is also copied to a large data frame
+\code{stor_df[[f]]}. Every table loaded in this way is also copied to a large data frame
 \code{line_df}, which has a row for each white-space delimited field (including headers),
 from all loaded files. A third copy of the data is stored in \code{txt[[f]]}, which caches
 the line-by-line text of the file as a vector of character strings.
@@ -36,7 +36,7 @@ the line-by-line text of the file as a vector of character strings.
 
 \item{\code{txt}}{list of character vectors, (internal use) file contents as plain text}
 
-\item{\code{df_stor}}{nested list of data frames, (internal use) file contents as tables}
+\item{\code{stor_df}}{nested list of data frames, (internal use) file contents as tables}
 }}
 
 
@@ -74,5 +74,12 @@ with \code{x = rs}, then modify \code{x}, you are actually modifying \code{rs}. 
 speeding up loading and parsing times (less data copied as function arguments), and it
 makes it easier to maintain a database about SWAT+ parameters that is visible to
 all \code{rswat} functions.
+
+In the code for methods, a special assignment operator (see \verb{?<<-}) is used
+extensively to write to fields of the parent rswat_db object. When we need to reference
+this object explicitly (like in arguments to external function calls), we use \code{.self}.
+
+In other functions (those which aren't rswat_db methods) we reference the rswat_db object
+via the parameter \code{.db}, which by default points to \code{.rswat_db}.
 }
 

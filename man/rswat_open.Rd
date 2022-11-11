@@ -9,10 +9,12 @@ rswat_open(f = NULL, quiet = FALSE, .db = .rswat_db)
 \arguments{
 \item{f}{character vector, the file name(s) to select}
 
+\item{quiet}{logical, suppresses console output and returns results invisibly}
+
 \item{.db}{rswat_db object, for internal use}
 }
 \value{
-a data frame or a list of them
+a data frame or a list of them, the parameter tables in the config file
 }
 \description{
 Returns data frame, or a list of them, corresponding to the data values

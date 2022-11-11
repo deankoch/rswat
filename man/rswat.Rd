@@ -6,8 +6,9 @@
 \usage{
 rswat(
   swat_dir = NULL,
+  exe_dir = NULL,
   load_all = FALSE,
-  ignore = .rswat_gv_ignore(),
+  exclude = .rswat_gv_exclude(),
   reset = FALSE,
   quiet = FALSE,
   .db = .rswat_db
@@ -16,9 +17,11 @@ rswat(
 \arguments{
 \item{swat_dir}{character, path to the SWAT+ project directory (should contain "file.cio")}
 
-\item{load_all}{logical, indicating to load all configuration files except as specified in \code{ignore}}
+\item{exe_dir}{character, path to the SWAT+ simulation executable (should have extension ".exe")}
 
-\item{ignore}{character vector, regular expressions for groups/names to not load}
+\item{load_all}{logical, indicating to load all configuration files except as specified in \code{exclude}}
+
+\item{exclude}{character vector, regular expressions for groups/names to not load}
 
 \item{reset}{logical, indicates to re-initialize rswat (erases any loaded data)}
 
@@ -41,5 +44,5 @@ This information can be updated with \code{rswat_refresh} or \code{rswat_load}.
 The function returns a data frame of information on the files in \code{swat_dir}.
 
 Files of type 'output', 'decision_table', 'gwflow' are not loaded by default because they
-can be large and slow to parse. Set \code{ignore=""} to load everything.
+can be large and slow to parse. Set \code{exclude=""} to load everything.
 }
