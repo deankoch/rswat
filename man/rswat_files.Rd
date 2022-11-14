@@ -20,7 +20,7 @@ rswat_files(
 
 \item{type}{character, one of 'config' (the default)...}
 
-\item{include}{character, one of 'loaded', 'known', 'all'}
+\item{include}{character, one of 'loaded', 'cio', 'known', 'all'}
 
 \item{refresh}{logical, indicates to re-scan the directory}
 

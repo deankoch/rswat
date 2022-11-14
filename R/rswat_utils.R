@@ -102,8 +102,7 @@ rswat_date_conversion = function(d) {
 }
 
 
-
-#' String distance ranking using `base::adist` for SWAT+ variables
+#' String distance ranking using `base::adist`
 #'
 #' Scores the elements in character vector `lu` according to their similarity with `pattern`.
 #' Lower scores are better matches, with minimum 0 indicating a perfect match.
@@ -112,11 +111,11 @@ rswat_date_conversion = function(d) {
 #' at punctuation and white-space, and the function scores against each element separately.
 #' The entire string is then assigned the score of the best matching element
 #'
-#' String distances returned by the function satisfy the following:
+#' Scores returned by the function satisfy the following:
 #'
-#' 1. exact matches have distance 0
-#' 2. exact sub-string matches have distance in (0,1)
-#' 3. approximate sub-string matches have distance in [1, Inf)
+#' 1. exact matches have score 0
+#' 2. exact matches with sub-strings of `lu` have score in (0,1)
+#' 3. approximate sub-string matches have score in [1, Inf)
 #'
 #' Results in group (2) are ordered according the relative difference in string length
 #' between `pattern` and the respective element of `lu` (after splitting). Results in group
@@ -134,6 +133,7 @@ rswat_date_conversion = function(d) {
 #' @param pattern character vector, the search keyword string
 #' @param lu character vector, a set of strings to compare with `pattern`
 #' @param lu_split logical, whether to split `lu` at punctuation and whitespace (see details)
+#' @param split_c numeric, a small positive regularization constant (for internal use)
 #' @param costs named list, costs for the three types of string edits, passed to `base::adist`
 #'
 #' @return logical, indicating if the directory has been assigned
@@ -150,17 +150,14 @@ rswat_date_conversion = function(d) {
 #' # sub-string is still the best match (but nonzero)
 #' rswat_string_dist('var', lu)
 #'
-#' # repeat with punctuation splitting turned on to get exact match
+#' # repeat with punctuation splitting turned on to get near-exact match
 #' rswat_string_dist('var', lu, lu_split=TRUE)
 #'
-#' # fuzzing matching is helpful for correcting typos
-#' rswat_string_dist('n_bar', lu)
 #'
-#' # ties resolved by string length closeness
-#' rswat_string_dist('n_foo', lu)
-#'
-#'
-rswat_string_dist = function(pattern, lu, lu_split=FALSE, costs=list(ins=2, del=1, sub=1))
+rswat_string_dist = function(pattern, lu,
+                             lu_split = FALSE,
+                             split_c = 1e-6,
+                             costs = list(ins=4, del=1, sub=2))
 {
   # handle empty search pattern case
   if( pattern == '*' ) return( rep(0, length(lu)) )
@@ -195,16 +192,14 @@ rswat_string_dist = function(pattern, lu, lu_split=FALSE, costs=list(ins=2, del=
   lu_len[is.na(lu_len)] = max(lu_len, na.rm=TRUE) + 1L
 
   # and compute relative length difference
-  match_minlen = pmin(lu_len, pattern_len)
-  match_maxlen = pmax(lu_len, pattern_len)
-  lu_rlen = 1 - ( match_minlen/match_maxlen )
+  lu_rlen = 1 - ( pmin(lu_len, pattern_len) / pmax(lu_len, pattern_len) )
 
   # identify exact matches and initialize distances
   is_exact = lu %in% pattern
   dist_out = as.integer(!is_exact)
 
   # find Levenstein distances to sub-strings as proportion of pattern length
-  dist_sub = adist(pattern, lu, costs=costs, partial=TRUE) / pattern_len
+  dist_sub = as.vector( adist(pattern, lu, costs=costs, partial=TRUE) ) / pattern_len
   dist_sub[ is.na(dist_sub) ] = max(dist_sub, na.rm=TRUE) + 1
 
   # use relative string length as base ranking for exact sub-string matches
@@ -213,8 +208,11 @@ rswat_string_dist = function(pattern, lu, lu_split=FALSE, costs=list(ins=2, del=
 
   # rank approximate sub-string matches by Levenstein distance and relative lengths
   is_inexact = dist_sub > 0
-  dist_sub_adj = dist_sub[is_inexact] + lu_rlen[is_inexact]
-  dist_out[is_inexact] = 1 + ( dist_sub_adj / max(dist_sub_adj) )
+  if( any(is_inexact) )
+  {
+    dist_sub_adj = dist_sub[is_inexact] + lu_rlen[is_inexact]
+    dist_out[is_inexact] = 1 + ( dist_sub_adj / max(dist_sub_adj) )
+  }
 
   # recompute for split look-up strings, if requested
   if( lu_split )
@@ -222,25 +220,23 @@ rswat_string_dist = function(pattern, lu, lu_split=FALSE, costs=list(ins=2, del=
     # split at punctuation characters, ignoring beginning/end of string
     lu_list = strsplit(lu, '[[:punct:]]|\\s+')
     lu_len = sapply(lu_list, length)
-    is_punct = lu_len > 0
+    is_punct = lu_len > 1
 
     # recursive call to compute individual distances
     if( any(is_punct) )
     {
-      # pass vectorized list in recursive call
-      lu_vec = unlist(lu_list[is_punct])
-      adist_split = rswat_string_dist(pattern, lu_vec, lu_split=FALSE, costs=costs)
+      # call in a loop over all string elements in lu that can be split, find best scores
+      split_list = lapply(lu_list[is_punct], \(x) rswat_string_dist(pattern, x, F, split_c, costs))
+      adist_best = sapply(split_list, min)
 
-      # inverse vectorization to rebuild list
-      idx_end = cumsum(lu_len[is_punct])
-      idx_start = c(1L, idx_end[-length(idx_end)] + 1L)
+      # apply a small penalty for splitting, based on median component scores
+      split_penalty = min(split_constant, min( dist_out[ !is_punct & (dist_out > 0) ] ))
+      adist_best = split_penalty * sapply(adist_split, median)
 
       # find minimum distance by list element and overwrite existing value
-      dist_split = mapply(\(x,y) min(adist_split[x:y]), x=idx_start, y=idx_end)
-      dist_out[is_punct] = pmin(dist_split, dist_out[is_punct])
+      dist_out[is_punct] = adist_best
     }
   }
 
   return(dist_out)
 }
-

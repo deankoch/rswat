@@ -2,13 +2,14 @@
 % Please edit documentation in R/rswat_utils.R
 \name{rswat_string_dist}
 \alias{rswat_string_dist}
-\title{String distance ranking using \code{base::adist} for SWAT+ variables}
+\title{String distance ranking using \code{base::adist}}
 \usage{
 rswat_string_dist(
   pattern,
   lu,
   lu_split = FALSE,
-  costs = list(ins = 2, del = 1, sub = 1)
+  split_c = 1e-06,
+  costs = list(ins = 4, del = 1, sub = 2)
 )
 }
 \arguments{
@@ -17,6 +18,8 @@ rswat_string_dist(
 \item{lu}{character vector, a set of strings to compare with \code{pattern}}
 
 \item{lu_split}{logical, whether to split \code{lu} at punctuation and whitespace (see details)}
+
+\item{split_c}{numeric, a small positive regularization constant (for internal use)}
 
 \item{costs}{named list, costs for the three types of string edits, passed to \code{base::adist}}
 }
@@ -32,11 +35,11 @@ All matching is case insensitive. When \code{lu_split=TRUE}, each entry of \code
 at punctuation and white-space, and the function scores against each element separately.
 The entire string is then assigned the score of the best matching element
 
-String distances returned by the function satisfy the following:
+Scores returned by the function satisfy the following:
 \enumerate{
-\item exact matches have distance 0
-\item exact sub-string matches have distance in (0,1)
-\item approximate sub-string matches have distance in [1, Inf)
+\item exact matches have score 0
+\item exact matches with sub-strings of \code{lu} have score in (0,1)
+\item approximate sub-string matches have score in [1, Inf)
 }
 
 Results in group (2) are ordered according the relative difference in string length
@@ -63,14 +66,8 @@ rswat_string_dist('n_var', lu)
 # sub-string is still the best match (but nonzero)
 rswat_string_dist('var', lu)
 
-# repeat with punctuation splitting turned on to get exact match
+# repeat with punctuation splitting turned on to get near-exact match
 rswat_string_dist('var', lu, lu_split=TRUE)
-
-# fuzzing matching is helpful for correcting typos
-rswat_string_dist('n_bar', lu)
-
-# ties resolved by string length closeness
-rswat_string_dist('n_foo', lu)
 
 
 }
