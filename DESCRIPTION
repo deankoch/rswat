@@ -14,8 +14,12 @@ Collate:
     'rswat_db.R'
     'rswat_db_config_methods.R'
     'rswat_db_config_methods_helpers.R'
+    'rswat_find.R'
+    'rswat_pdf.R'
     'rswat_write_methods_helpers.R'
     'rswat_write_methods.R'
     'rswat_defaults.R'
     'rswat_utils.R'
     'rswat_db_initialize.R'
+Depends: 
+    R (>= 2.10)

@@ -10,6 +10,7 @@ rswat(
   load_all = FALSE,
   exclude = .rswat_gv_exclude(),
   reset = FALSE,
+  n_max = 10,
   quiet = FALSE,
   .db = .rswat_db
 )
@@ -28,7 +29,7 @@ rswat(
 \item{.db}{rswat_db object, for internal use}
 }
 \value{
-SWAT+ directory (character), or a logical indicating if new directory is different
+A data frame of information on the SWAT+ files in \code{swat_dir}
 }
 \description{
 Scans a SWAT+ project directory for configuration files and optionally loads them. This
@@ -39,9 +40,9 @@ files in \code{swat_dir} files to be listed, and their contents displayed and mo
 When \code{swat_dir} is set for the first time in an R session, or when it is changed, the
 function will scan the directory for SWAT+ files, building a data frame of information
 about them which can be accessed with functions like \code{rswat_files} or \code{rswat_find}.
-This information can be updated with \code{rswat_refresh} or \code{rswat_load}.
 
-The function returns a data frame of information on the files in \code{swat_dir}.
+The function invisibly returns a data frame of information on the files in \code{swat_dir},
+printing its first few rows (by default, when \code{quiet=TRUE}).
 
 Files of type 'output', 'decision_table', 'gwflow' are not loaded by default because they
 can be large and slow to parse. Set \code{exclude=""} to load everything.

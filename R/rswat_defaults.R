@@ -16,7 +16,8 @@
         c('\\.input', 'gwflow'),
         c('\\.rivcells', 'gwflow'),
         c('\\.hrucell','gwflow'),
-        c('\\.cellhru','gwflow')) |> as.data.frame() |> stats::setNames(c('pattern', 'type'))
+        c('\\.cellhru','gwflow'),
+        c('gwflow\\_', 'gwflow')) |> as.data.frame() |> stats::setNames(c('pattern', 'type'))
 }
 
 # config files using "y" and "n" to represent logical (called in rswat_scan_txt, rswat_rtable_txt)
@@ -40,30 +41,33 @@
 
 # attributes to display in default calls to rswat_files
 .rswat_gv_cio_show = function() c('file',
-                                  'loaded',
+                                  'type',
                                   'group',
+                                  'loaded',
                                   'n_table',
                                   'n_line',
                                   'n_var',
                                   'size')
 
-# attributes to display in calls to rswat_find with trim=1
-.rswat_gv_find_trim_1 = function() c('distance',
-                                     'name',
-                                     'field_num',
-                                     'line_num',
-                                     'file',
-                                     'table')
 
-# attributes to display in calls to rswat_find with trim=2
-.rswat_gv_find_trim_2 = function() c('distance',
-                                     'name',
-                                     'file',
-                                     'table')
+# attributes to display search results with trim
+.rswat_gv_find_trim = function(trim) switch(trim,
 
-# attributes to display in calls to rswat_find with trim=3
-.rswat_gv_find_trim_3 = function() c('name',
-                                     'file')
+  `1` = c('name',
+          'field_num',
+          'line_num',
+          'file',
+          'table',
+          'distance'),
+
+  `2` = c('name',
+          'file',
+          'table',
+          'distance'),
+
+  `3` = c('name',
+          'file')
+)
 
 # simulation time step size codes (docs unclear on sub-hourly case, so it is not supported)
 .rswat_gv_step_codes = function() c(daily = 0L,
