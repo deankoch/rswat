@@ -46,8 +46,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
     dplyr::mutate( path = file.path(swat_dir, file) ) |>
     dplyr::anti_join( cio_df, by=c('file') ) |>
     dplyr::full_join( cio_df, by=c('file', 'known', 'loaded', 'type', 'path') ) |>
-    dplyr::mutate( exists = file.exists(path) ) |>
-    dplyr::mutate( known = known | !is.na(type) )
+    dplyr::mutate( exists = file.exists(path) )
 
   # add the size and time modified for each file on disk
   finfo = file.info(cio_new[['path']])
@@ -58,6 +57,8 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   type_lu = .rswat_gv_type_lu()
   type_match = lapply(type_lu[['pattern']], \(s) which(grepl(s, cio_new[['file']])) )
   for( j in seq(nrow(type_lu)) ) cio_new[['type']][ type_match[[j]] ] = type_lu[['type']][j]
+  cio_new[['type']][ is.na(cio_new[['type']]) ] = 'unknown'
+  cio_new[['known']] = cio_new[['type']] != 'unknown'
   return(cio_new)
 }
 

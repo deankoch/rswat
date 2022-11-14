@@ -14,7 +14,7 @@ rswat_db$methods( list(
     parse_file_cio(refresh=TRUE, quiet=quiet)
 
     # make a default list of files to open
-    if( is.null(f) ) f = cio_df |> dplyr::filter(type=='config') |> pull(file)
+    if( is.null(f) ) f = cio_df |> dplyr::filter(!is.na(group)) |> pull(file)
     msg_unknown = paste(f, collapse=', ')
 
     # exclude ineligible files
@@ -83,16 +83,21 @@ rswat_db$methods( list(
     # open and parse the file (populate line_df_temp) then copy tables to data frames in storage
     get_config_tables(f, output=FALSE, refresh=refresh)
 
-    # set the 'loaded' flag in files metadata and directory list
-    line_df_temp[['loaded']] <<- TRUE
-    cio_df[['loaded']][ which(cio_df[['file']] == f) ] <<- TRUE
+    # skipped for empty files
+    if( length(stor_df[[f]]) > 0 )
+    {
+      # set the 'loaded' flag in files metadata and directory list
+      line_df_temp[['loaded']] <<- TRUE
+      cio_df[['loaded']][ which(cio_df[['file']] == f) ] <<- TRUE
 
-    # copy contents of temporary data frame to the persistent one then tidy row names
-    line_df <<- rbind(subset(line_df, file != f), line_df_temp)
-    rownames(line_df) <<- seq(nrow(line_df))
+      # copy contents of temporary data frame to the persistent one then tidy row names
+      line_df <<- rbind(subset(line_df, file != f), line_df_temp)
+      rownames(line_df) <<- seq(nrow(line_df))
 
-    # parse file.cio to update groups
-    if(f == 'file.cio') parse_file_cio(refresh=FALSE, quiet=TRUE)
+      # parse file.cio to update groups
+      if(f == 'file.cio') parse_file_cio(refresh=FALSE, quiet=TRUE)
+
+    }
 
     # update OS file info
     if(update_stats) stats_cio_df()
@@ -155,13 +160,16 @@ rswat_db$methods( list(
       rswat_scan_txt(f) |>
       rswat_ftable_txt()
 
+    # if the data frame is empty (empty file), then we are done
+    if(nrow(line_df_temp) == 0) return(line_df_temp)
+
     # TODO: some hacking may be required for exceptional files like gwflow, weather.wgn here?
 
     # assign precisions
     line_df_temp <<- rswat_nprec_txt(line_df_temp, quiet=TRUE)
 
     # copy comment (if any) before returning
-    if(f %in% names(txt)) cio_df[['msg']][ which(cio_df[['file']] == f) ] <<-  txt[[f]][[1]]
+    if(f %in% names(txt)) cio_df[['msg']][ which(cio_df[['file']] == f) ] <<- txt[[f]][[1]]
     if(output) return(line_df_temp)
     return(invisible())
   },
@@ -198,7 +206,7 @@ rswat_db$methods( list(
   # parse file.cio and add group labels to cio_df
   parse_file_cio = function(refresh=TRUE, quiet=FALSE) {
 
-    # check that the file is loaded
+    # check that the file.cio text is in cache (not the same as is_file_loaded!)
     is_loaded = 'file.cio' %in% names(stor_df)
     if(!is_loaded) stop('file.cio not loaded. Try calling open_config_file first')
     file_cio_df = stor_df[['file.cio']][[1]]
