@@ -39,5 +39,5 @@ rswat_check = function(quiet=FALSE, .db=.rswat_db)
 #' above. This ensures the R files are collated in the right order.
 
 .rswat_db = rswat_db$new()
-rswat_check()
+rswat_check(quiet=TRUE)
 

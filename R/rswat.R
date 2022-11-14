@@ -67,7 +67,7 @@ rswat = function(swat_dir = NULL,
 
   # run check to print info then fetch a copy of files list
   rswat_check(quiet=quiet, .db=.db)
-  cio_out = rswat_files(refresh=FALSE, include='loaded', .db=.db)
+  cio_out = rswat_files(refresh=FALSE, include='loaded', .db=.db) |> dplyr::select(-loaded)
 
   # return nothing if no directory is assigned
   if(nrow(cio_out) == 0) return(invisible())
@@ -86,7 +86,7 @@ rswat = function(swat_dir = NULL,
 
     # print the data frame
     print(head(cio_out, n_print), quote=FALSE)
-    cat(paste0(ifelse(is_cropped, '...', ''), '\n'))
+    cat(paste0(ifelse(is_cropped, '...\n', ''), '\n'))
     if(is_cropped) message('show all files with rswat_files()')
   }
 
