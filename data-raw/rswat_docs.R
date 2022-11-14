@@ -13,4 +13,4 @@ pdf_path = 'D:/UYRW_data/development/inputs_swatplus_rev60_5.pdf'
 str(.rswat_io_pdf)
 
 # update the package sysdata.rda
-usethis::use_data(.rswat_io_pdf, overwrite=TRUE)
+usethis::use_data(.rswat_io_pdf, internal=TRUE, overwrite=TRUE)
