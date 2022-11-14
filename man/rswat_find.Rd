@@ -6,8 +6,8 @@
 \usage{
 rswat_find(
   pattern = "*",
-  f = .db$get_loaded_files(),
-  fuzzy = 2L,
+  f = NULL,
+  fuzzy = 0L,
   trim = 3L,
   n_max = 10L,
   quiet = FALSE,

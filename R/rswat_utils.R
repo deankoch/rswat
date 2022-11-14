@@ -169,7 +169,7 @@ rswat_string_dist = function(pattern, lu,
   if( length(pattern_pipe) > 1 )
   {
     # match the split patterns separately and return parallel minimum
-    dist_mat = sapply(pattern_pipe, \(p) rswat_string_dist(p, lu, lu_split, costs))
+    dist_mat = sapply(pattern_pipe, \(p) rswat_string_dist(p, lu, lu_split, split_c, costs))
     return( apply(dist_mat, 1, min) )
   }
 
@@ -179,7 +179,7 @@ rswat_string_dist = function(pattern, lu,
   if( length(pattern_split) > 1 )
   {
     # match the split patterns separately and return means
-    dist_mat = sapply(pattern_split, \(p) rswat_string_dist(p, lu, lu_split, costs))
+    dist_mat = sapply(pattern_split, \(p) rswat_string_dist(p, lu, lu_split, split_c, costs))
     return( rowMeans(dist_mat) )
   }
 
@@ -230,8 +230,8 @@ rswat_string_dist = function(pattern, lu,
       adist_best = sapply(split_list, min)
 
       # apply a small penalty for splitting, based on median component scores
-      split_penalty = min(split_constant, min( dist_out[ !is_punct & (dist_out > 0) ] ))
-      adist_best = split_penalty * sapply(adist_split, median)
+      split_penalty = min(split_c, min( dist_out[ !is_punct & (dist_out > 0) ] ))
+      adist_best = adist_best + split_penalty * sapply(split_list, mean)
 
       # find minimum distance by list element and overwrite existing value
       dist_out[is_punct] = adist_best

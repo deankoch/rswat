@@ -24,19 +24,72 @@
 #' @return A data frame of information about SWAT+ names matching the search pattern(s)
 #' @export
 rswat_find = function(pattern = '*',
-                      f = .db$get_loaded_files(),
-                      fuzzy = 2L,
+                      f = NULL,
+                      fuzzy = 0L,
                       trim = 3L,
                       n_max = 10L,
                       quiet = FALSE,
-                      .db=.rswat_db)
+                      .db = .rswat_db)
 {
-  # round fuzzy to integer
-  fuzzy = ceiling(fuzzy)
+  # scan for changes and make a list of all files on disk
+  .db$refresh_cio_df()
+  files_ondisk = .db$get_cio_df(what='file')
 
-  # load any missing files
+  # set default f
+  if( is.null(f) )
+  {
+    # file name can be supplied as argument pattern
+    if(all(pattern %in% files_ondisk))
+    {
+      f = pattern
+      pattern = '*'
+
+    } else { f = .db$get_loaded_files() }
+  }
+
+  # check for missing files
   is_loaded = .db$is_file_loaded(f)
-  if( any(!is_loaded) ) rswat_open(f[!is_loaded], .db=.db)
+  if( any(!is_loaded) )
+  {
+    # make sure the file(s) can be found on disk
+    is_found = f %in% files_ondisk
+    if( any(!is_found) & ( length(f) == 1 ) )
+    {
+      # in quiet mode, halt on missing file, otherwise report it in a message
+      msg_missing = paste('file', f, 'not found.')
+      if(quiet) stop( paste(msg_missing, 'Repeat with quiet=FALSE to get file name suggestions') )
+      message( paste(msg_missing, 'Searching for similar file names...') )
+
+      # set default fuzzy for this mode
+      #if( is.null(fuzzy) ) fuzzy = 0L
+
+      # when f is a single string, search for this string among file names found on disk
+      search_result = rswat_fuzzy_search(pattern = f,
+                                         lu = files_ondisk,
+                                         lu_split = TRUE,
+                                         fuzzy = fuzzy,
+                                         quiet = quiet)
+
+      # finished no results case
+      if( nrow(search_result) == 0 ) return(invisible())
+
+      # TODO: add group to this result
+
+      # print the results to console
+      search_result = setNames(search_result[c('name', 'distance')], c('file', 'distance'))
+      search_result = rswat_show_search(results = search_result,
+                                        fuzzy = fuzzy,
+                                        n_max = n_max,
+                                        nm_print = 'file',
+                                        .db = .db)
+
+      return(invisible(search_result))
+    }
+
+    # missing files for vector f case trigger an error here (otherwise loads)
+    rswat_open(f[!is_loaded], .db=.db)
+
+  }
 
   # omit certain attributes depending on trim level
   nm_return = .rswat_gv_find_trim(trim)
@@ -53,14 +106,12 @@ rswat_find = function(pattern = '*',
     f_available = .db$get_loaded_files()
     is_f_alone = all(f_available %in% f)
 
-    # message about the state of file.cio
-    message(paste('rswat knows about', .db$report_known_files(), 'but only file.cio is loaded'))
-
     # only file.cio is available
     if(!is_f_alone) { message('no variables to display in file.cio') } else {
 
       # guidance for users who haven't loaded any files yet
-      if(is_f_alone) message('load a file with rswat_open to make it searchable with rswat_find')
+      message('load a file with rswat_open to make it searchable with rswat_find')
+      message(paste('rswat knows about', .db$report_known_files(), 'but only file.cio is loaded'))
     }
 
     return(invisible())
@@ -75,23 +126,28 @@ rswat_find = function(pattern = '*',
 
     # TODO: append descriptions here
 
+    # report the number of variables
     if(!quiet)
     {
       n_files = length(unique(search_result[['file']]))
-      message(paste(nrow(search_result), 'variables in', n_files, 'file(s)'))
-      print(search_result[, nm_return], quote=FALSE, right=FALSE)
-      return(invisible(search_result[, nm_return]))
+      msg_files = ifelse(length(unique(f)) == 1, f, paste(n_files, 'file(s)'))
+      message(paste(nrow(search_result), 'variables in', msg_files))
+      print(search_result[, nm_return, drop=FALSE], quote=FALSE, right=FALSE)
     }
 
-    return(search_result[, nm_return])
+    return(invisible(search_result[, nm_return]))
   }
+
+  # set a higher default fuzzy for this mode
+  #if( is.null(fuzzy) ) fuzzy = 2L
 
   # run the search on the names attribute
   vname_included = .db$line_df[['name']][is_included]
-  search_result = rswat_fuzzy_search(pattern,
+  search_result = rswat_fuzzy_search(pattern = pattern,
                                      lu = vname_included,
                                      lu_split = FALSE,
-                                     fuzzy = fuzzy)
+                                     fuzzy = fuzzy,
+                                     quiet = quiet)
 
   # take subset of data-frame corresponding to matches, append distance scores
   idx_match = which(is_included)[ search_result[['order']] ]
@@ -136,7 +192,11 @@ rswat_find = function(pattern = '*',
 #'
 #' @return Returns (invisibly) the subset of `results` specified by `nm_print`
 #' @export
-rswat_show_search = function(results, fuzzy=2L, n_max=10L, nm_print=names(results), .db=.rswat_db)
+rswat_show_search = function(results,
+                             fuzzy = 2L,
+                             n_max = 10L,
+                             nm_print = names(results),
+                             .db = .rswat_db)
 {
   # handle empty results data frame
   n_results = nrow(results)
@@ -178,12 +238,12 @@ rswat_show_search = function(results, fuzzy=2L, n_max=10L, nm_print=names(result
   message( paste('exact:', msg_omit) )
   if( any(results[['is_exact']]) )
   {
-    print(results[ results[['is_exact']], nm_print], quote=FALSE, right=FALSE)
+    print(results[results[['is_exact']], nm_print, drop=FALSE], quote=FALSE, right=FALSE)
     cat('\n')
   }
 
   # message about sub-string matches
-  if(fuzzy > 0)
+  if(fuzzy >= 0)
   {
     n_omit = sum(results_omit[['is_exact_sub']])
     msg_sub = ifelse(n_sub > 0, n_sub, 'none')
@@ -191,7 +251,7 @@ rswat_show_search = function(results, fuzzy=2L, n_max=10L, nm_print=names(result
     message(paste('sub-string:', msg_omit))
     if( any(results[['is_exact_sub']]) )
     {
-      print(results[ results[['is_exact_sub']], nm_print], quote=FALSE, right=FALSE)
+      print(results[ results[['is_exact_sub']], nm_print, drop=FALSE], quote=FALSE, right=FALSE)
       cat('\n')
     }
   }
@@ -204,10 +264,10 @@ rswat_show_search = function(results, fuzzy=2L, n_max=10L, nm_print=names(result
     msg_approx = ifelse(n_approx > 0, paste('showing first', msg_n), 'none shown')
     msg_approx_trim = paste('showing', n_approx-n_omit, 'of first', n_approx)
     msg_omit = ifelse(n_omit > 0, msg_approx_trim, msg_approx)
-    message( paste('approximate:', msg_omit))
+    message( paste('fuzzy:', msg_omit))
     if( any(results[['is_approx']]) )
     {
-      print(results[ results[['is_approx']], nm_print], quote=FALSE, right=FALSE)
+      print(results[ results[['is_approx']], nm_print, drop=FALSE], quote=FALSE, right=FALSE)
       cat('\n')
     }
   }
@@ -220,7 +280,7 @@ rswat_show_search = function(results, fuzzy=2L, n_max=10L, nm_print=names(result
   }
 
   # return the trimmed data frame
-  return(invisible(results[, nm_print]))
+  return(invisible(results[, nm_print, drop=FALSE]))
 }
 
 
@@ -277,7 +337,7 @@ rswat_show_search = function(results, fuzzy=2L, n_max=10L, nm_print=names(result
 #' rswat_fuzzy_search('num_variables', lu, fuzzy=3)
 #' rswat_fuzzy_search('num_variables', lu, fuzzy=5)
 #'
-rswat_fuzzy_search = function(pattern, lu, fuzzy=5L, lu_split=FALSE)
+rswat_fuzzy_search = function(pattern, lu, fuzzy=5L, lu_split=FALSE, quiet=FALSE)
 {
   # collapse vector pattern to series of OR and pass it to string distance function
   pattern = paste(unique(pattern), collapse='|')
@@ -300,8 +360,13 @@ rswat_fuzzy_search = function(pattern, lu, fuzzy=5L, lu_split=FALSE)
     {
       # append approximate results from 1 to `fuzzy`
       is_approx = !is_exact & !is_sub
-      add_approx = which(is_approx)[order(dist_result[is_approx])[seq(fuzzy)]]
-      if( any(is_approx) ) idx_result = c(idx_result, add_approx)
+      if( any(is_approx) )
+      {
+        # truncate if there aren't enough results
+        fuzzy = min(fuzzy, sum(is_approx))
+        add_approx = which(is_approx)[order(dist_result[is_approx])[seq(fuzzy)]]
+        idx_result = c(idx_result, add_approx)
+      }
     }
   }
 
@@ -310,8 +375,8 @@ rswat_fuzzy_search = function(pattern, lu, fuzzy=5L, lu_split=FALSE)
   n_results = length(idx_result)
   if(n_results == 0)
   {
-    message('no results found. Try increasing fuzzy or loading more files')
-    return(invisible())
+    if(!quiet) message('no results found. Try increasing fuzzy or loading more files')
+    return(invisible(data.frame(order=integer(0), distance=numeric(0), name=character(0))))
   }
 
   # extract all available info on matches, append distance scores
@@ -343,6 +408,11 @@ rswat_docs = function(pattern=NULL,
                       desc_len=50L,
                       .db=.rswat_db)
 {
+
+  # .db$docs$defs |> filter(file==f)
+  # cat(.db$docs$comment[[f]])
+
+
   nm_show = c('file', 'name', 'desc_short')
   lu_name = ifelse(descriptions, 'desc', 'name')
 
@@ -397,9 +467,108 @@ rswat_docs = function(pattern=NULL,
 
 
 
-rswat_copy_desc = function(.db=.rswat_db)
+rswat_match_docs = function(f, desc_len=50L, .db=.rswat_db)
 {
+  # TODO: omit headers from pdf database
+  # TODO: match only the first instance of variable name when parsing descriptions!!
+  # TODO: omit id from matching
+  # TODO: add exception for weather-wgn.cli
+  # TODO: check for matching number of attributes (see nutrients.cha)
 
+  f_results = rswat_find(f, quiet=TRUE, .db=.db)
+  if(is.null(f_results)) stop('invalid f')
+
+  is_in_docs = .db[['docs']][['defs']][['file']] %in% f
+  f_docs = .db[['docs']][['defs']][is_in_docs, ]
+  if(nrow(f_docs) == 0) stop('invalid f')
+
+  # find string distance scores
+  f_nm = stats::setNames(nm=f_results[['name']])
+  search_result = lapply(f_nm, \(s) rswat_fuzzy_search(s, f_docs[['name']], fuzzy=3))
+
+  # remove exact matches from results list (they are already mapped)
+  is_exact = sapply(search_result, \(x) any(x[['distance']]==0))
+  if( any(is_exact) ) search_result = search_result[-which(is_exact)]
+
+  # also remove from hits on other keywords, and remove empty results
+  search_result = lapply(search_result, \(x) subset(x, !(name %in% f_nm[is_exact])))
+  is_empty = sapply(search_result, \(x) nrow(x) == 0)
+  if(any(is_empty)) search_result = search_result[!is_empty]
+
+  # vector with named NA entries that need mapping
+  f_nm[!is_exact] = NA
+
+  # add mappings in a loop until there's nothing left to map
+  while( length(search_result) > 0 )
+  {
+    # re-order the remaining assignments from best to worst
+    nm_ordered = names(sort(sapply(search_result, \(x) x[['distance']][1])))
+    idx_rm = match(nm_ordered[1], names(search_result))
+
+    # copy the best mapping
+    nm_match = search_result[[idx_rm]][['name']][1]
+    f_nm[names(search_result)[idx_rm]] = nm_match
+    nm_known = names(search_result)[idx_rm]
+
+    # update search list
+    search_result = search_result[-idx_rm]
+    search_result = lapply(search_result, \(x) subset(x, name != nm_match))
+    is_empty = sapply(search_result, \(x) nrow(x) == 0)
+
+    # clear empty results data frames
+    if(any(is_empty)) search_result = search_result[!is_empty]
+  }
+
+  # copy the descriptions to results and write attribute to indicate inexact matches
+  f_results[['alias']] = f_nm
+  f_results[['alias']][is_exact] = NA
+  desc_txt = f_docs[['desc']][ match(f_nm, f_docs[['name']]) ]
+
+  # create a truncated version of descriptions, append to return data frame
+  desc_short = substr(gsub('\\s{2,}', ' ', desc_txt, perl=TRUE), 1L, desc_len)
+  desc_short[ is.na(desc_short) ] = ''
+  desc_pad = sapply(desc_len - nchar(desc_short), \(n) paste(rep(' ', n), collapse=''))
+  f_results[['desc_short']] = paste0(desc_short, desc_pad, ifelse(nchar(desc_pad) > 0, '   ', '...'))
+  return(f_results)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
