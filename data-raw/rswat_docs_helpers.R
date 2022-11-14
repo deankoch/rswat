@@ -1,3 +1,17 @@
+#' Read the SWAT+ inputs documentation PDF
+#'
+#' So far this is only tested on the 'inputs_swatplus_rev60_5.pdf' file which is current
+#' as of October, 2022. This calls the two functions defined below to parse the document
+#' text and returns in a list: a data frame summarizing all variable definitions, and
+#' vector of "comments", which collect all text preceding variable definitions in a given
+#' section.
+#'
+#' @param pdf_path character, path to the pdf
+#'
+#' @return
+#' @export
+#'
+#' @examples
 rswat_open_io = function(pdf_path)
 {
   # open and parse the pdf
