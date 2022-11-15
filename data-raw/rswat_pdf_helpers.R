@@ -1,17 +1,59 @@
 #' Read the SWAT+ inputs documentation PDF
 #'
-#' So far this is only tested on the 'inputs_swatplus_rev60_5.pdf' file which is current
-#' as of October, 2022. This calls the two functions defined below to parse the document
-#' text and returns in a list: a data frame summarizing all variable definitions, and
-#' vector of "comments", which collect all text preceding variable definitions in a given
-#' section.
+#' Code to scrape the SWAT+ inputs documentation PDF for variable names and definitions.
+#'
+#' These functions are not exported by the rwsat package - you won't see them when you load
+#' the package - and they don't rely on any rswat functions. They are called by rswat_docs.R,
+#' which should reside in /data-raw (along with this file)
+#'
+#' So far this is tested on the 'inputs_swatplus_rev60_5.pdf' file only, which is current
+#' as of October, 2022. Call `rswat_open_io(pdf_path)` (where pdf_path points to the file)
+#' to make the data frame. The code depends on `pdftools::pdf_text` top render the PDF as
+#' plain text.
+#'
+#' The regular expressions below are where the magic happens. They identify different
+#' elements of documentation text based on their formatting. These may need some tweaking when
+#' the documentation PDF is next updated.
+
+# header/footer (appears on most pages) and variable name table headers
+regex_header = paste0('(', paste(c('^(\\s*[0-9]+\\s*SWAT\\+)',
+                                   '^(\\s*SWAT\\+ INPUTS\\s*[0-9]+)',
+                                   '[Vv]ariable\\s+name\\s+[Dd]efinition'), collapse=')|('), ')')
+
+# section headings begin with an all-caps keyword, then a space, then a dash
+regex_section_title = '^[A-Z]+ - .+'
+
+# file name headings are all caps, with a 2-3 character extension
+regex_file_name_main = '^[A-Z]+[-_]*[A-Z]*[-_]*[A-Z]+\\.[A-Z]{2,3}$'
+regex_file_name_alt = '^recall\\_day\\.rec$'
+regex_file_name = paste0('(', regex_file_name_main, ')|(', regex_file_name_alt, ')')
+
+# variables definitions always start with the name in all-caps snake case
+regex_vname_def_main = '^\\s*[A-Z][A-Z0-9]*_*[A-Z0-9]*_*[A-Z0-9]*'
+
+# sometimes there is also a suffix attached to the variable name
+regex_vname_def_suffix = paste0('(', paste(c('\\(MON\\)',
+                                             ', cont\\.',
+                                             '\\(layer \\#\\)',
+                                             '\\(top\\slayer\\)',
+                                             '[0-9]\\-[0-9]+'), collapse=')|('), ')')
+
+# variable names to exclude ("N" is a false positive, and the others are uninformative)
+regex_vname_exclude = '(^N$)|(^ID$)|(^TITLE$)|(^HEADER$)'
+
+# after 2+ white-space characters, the mixed case definition text begins
+regex_vname_def_desc = '(\\s{2,})([A-z].+[a-z]{2,})|($)'
+regex_vname_def = paste0('(', regex_vname_def_main, ')',
+                         '(', regex_vname_def_suffix, ')?',
+                         '(', regex_vname_def_desc, ')')
+
+
+#' Scrape variable definitions from the SWAT+ inputs documentation PDF
+#'
+#' Makes the data frame by calling `rswat_parse_io_pdf` and collapsing the results
 #'
 #' @param pdf_path character, path to the pdf
-#'
-#' @return
-#' @export
-#'
-#' @examples
+#' @return a data frame
 rswat_open_io = function(pdf_path)
 {
   # open and parse the pdf
@@ -31,7 +73,7 @@ rswat_open_io = function(pdf_path)
     # erase variable names from their declaration lines (leaving description only)
     f_df[['type']][is_vname] = 'description'
     f_df[['string']][is_vname] = f_df[is_vname, c('string', 'vname')] |>
-      apply(1L, \(x) trimws(gsub(toupper(x[2]), '', x[1])))
+      apply(1L, \(x) trimws(sub(toupper(x[2]), '', x[1])))
 
     # extract descriptions by variable
     vname_check = unique(f_df[['vname']])
@@ -69,42 +111,16 @@ rswat_open_io = function(pdf_path)
   return(list(defs=out_df, comment=comment))
 }
 
+#' Classify the lines in the SWAT+ inputs documentation PDF
+#'
+#' Loads the PDF and labels each line of the PDF as a section header, a file name
+#' definition, a variable name definition, or a component of description text.
+#'
+#' @param pdf_path character, path to the pdf
+#' @return a data frame
+#'
 rswat_parse_io_pdf = function(pdf_path)
 {
-  # TODO: cache the results in .swat_db
-  # TODO: once finished, move this to gv file
-  {
-    # header/footer (appears on most pages) and variable name table headers
-    regex_header = paste0('(', paste(c('^(\\s*[0-9]+\\s*SWAT\\+)',
-                                       '^(\\s*SWAT\\+ INPUTS\\s*[0-9]+)',
-                                       '[Vv]ariable\\s+name\\s+[Dd]efinition'), collapse=')|('), ')')
-
-    # section headings begin with an all-caps keyword, then a space, then a dash
-    regex_section_title = '^[A-Z]+ - .+'
-
-    # file name headings are all caps, with a 2-3 character extension
-    regex_file_name_main = '^[A-Z]+[-_]*[A-Z]*[-_]*[A-Z]+\\.[A-Z]{2,3}$'
-    regex_file_name_alt = '^recall\\_day\\.rec$'
-    regex_file_name = paste0('(', regex_file_name_main, ')|(', regex_file_name_alt, ')')
-
-    # variables definitions always start with the name in all-caps snake case
-    regex_vname_def_main = '^\\s*[A-Z][A-Z0-9]*_*[A-Z0-9]*_*[A-Z0-9]*'
-
-    # sometimes there is also a suffix attached to the variable name
-    regex_vname_def_suffix = paste0('(', paste(c('\\(MON\\)',
-                                                 ', cont\\.',
-                                                 '\\(layer \\#\\)',
-                                                 '\\(top\\slayer\\)',
-                                                 '[0-9]\\-[0-9]+'), collapse=')|('), ')')
-
-
-    # after 2+ white-space characters, the mixed case definition text begins
-    regex_vname_def_desc = '(\\s{2,})([A-z].+[a-z]{2,})|($)'
-    regex_vname_def = paste0('(', regex_vname_def_main, ')',
-                             '(', regex_vname_def_suffix, ')?',
-                             '(', regex_vname_def_desc, ')')
-  }
-
   # open the pdf as list of plain text strings, then vectorize
   pdf_txt_stor = pdftools::pdf_text(pdf_path)
   pdf_delim = strsplit(pdf_txt_stor, '\n')
@@ -118,7 +134,7 @@ rswat_parse_io_pdf = function(pdf_path)
   n_line_list = n_line_list[!is_empty]
   page_num_list = seq_along(pdf_delim)[!is_empty]
 
-  # make a data frame of line-by-line information
+  # initialize a data frame of line-by-line information
   pdf_df = data.frame(
 
     is_header = grepl(regex_header, pdf_delim_txt),
@@ -154,10 +170,11 @@ rswat_parse_io_pdf = function(pdf_path)
   pdf_df[['vname']][is_vname] = trimws(regmatches(vname_string,
                                                   regexpr(regex_vname_def_main, vname_string)))
 
-  # fix false positives where we matched "N"
-  is_typo_N = pdf_df[['vname']] == 'N'
-  pdf_df[['is_vname']][is_typo_N] = FALSE
-  pdf_df[['type']][is_typo_N] = 'unknown'
+  # remove some excluded words from variable names list
+  is_excluded = grepl(regex_vname_exclude, pdf_df[['vname']])
+  pdf_df[['is_vname']][is_excluded] = FALSE
+  pdf_df[['is_header']][is_excluded] = TRUE
+  pdf_df[['type']][is_excluded] = 'header'
 
   # forward-fill the 'vname' attribute with value of previous definition row
   idx_vname = which(pdf_df[['is_vname']])
@@ -187,13 +204,21 @@ rswat_parse_io_pdf = function(pdf_path)
     dplyr::mutate( vname = gsub(regex_vname_def_suffix, '', vname, perl=TRUE) )
 }
 
+#' Debugging tool for `rswat_parse_io_pdf`
+#'
+#' This appends the classification assigned by `rswat_parse_io_pdf` (as a text string
+#' prefix) to each line of the PDF text, and prints the result to the console.
+#'
+#' @param pdf_df the data frame returned by `rswat_parse_io_pdf`
+#' @param page_num the first page number to display
+#' @param len the number of pages to display
+#' @return nothing
 rswat_debug_io_pdf = function(pdf_df, page_num=1, len=1)
 {
   text_prefix_symbols = c(unknown = '!......?......>',
                           file_name = '!====fname---->',
                           variable_name = '!=====vdef---->',
-                          variable_description = '     L-------->',
-                          section = '!---section--->',
+                          description = '     L-------->',
                           header = '!---header---->')
 
   # appends the classification to each line (pipe to cat to view)
@@ -209,9 +234,9 @@ rswat_debug_io_pdf = function(pdf_df, page_num=1, len=1)
   # find the sequence of lines to print
   len = pmin(len, n - page_num + 1L)
   page_out = seq(page_num, page_num + len)
-  line_out = which(pdf_df[['page_num']] %in% c(page_out))
+  line_out = which(pdf_df[['page_num']] %in% page_out)
 
   # print to console
   cat(paste(pdf_df[['_string']][line_out], collapse='\n'))
-  return()
+  return(invisible())
 }

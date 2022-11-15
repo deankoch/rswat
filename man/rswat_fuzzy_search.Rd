@@ -4,7 +4,14 @@
 \alias{rswat_fuzzy_search}
 \title{Fuzzy text search based on rswat_string_dist}
 \usage{
-rswat_fuzzy_search(pattern, lu, fuzzy = 5L, lu_split = FALSE, quiet = FALSE)
+rswat_fuzzy_search(
+  pattern,
+  lu,
+  fuzzy = 5L,
+  lu_split = FALSE,
+  pattern_split = FALSE,
+  quiet = FALSE
+)
 }
 \arguments{
 \item{pattern}{character vector, the keyword to search for}

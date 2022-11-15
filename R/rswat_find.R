@@ -337,11 +337,24 @@ rswat_show_search = function(results,
 #' rswat_fuzzy_search('num_variables', lu, fuzzy=3)
 #' rswat_fuzzy_search('num_variables', lu, fuzzy=5)
 #'
-rswat_fuzzy_search = function(pattern, lu, fuzzy=5L, lu_split=FALSE, quiet=FALSE)
+rswat_fuzzy_search = function(pattern, lu,
+                              fuzzy = 5L,
+                              lu_split = FALSE,
+                              pattern_split = FALSE,
+                              quiet = FALSE)
 {
-  # collapse vector pattern to series of OR and pass it to string distance function
+  # collapse vector pattern to series of OR
   pattern = paste(unique(pattern), collapse='|')
-  dist_result = rswat_string_dist(pattern, lu, lu_split)
+
+  # split pattern at punctuation (or repackage as length-1 list)
+  if(pattern_split) pattern = strsplit(pattern, '[[:punct:]]|\\s+')[[1]]
+
+  # pass pattern list to string distance function and compute mean
+  dist_result = if( length(pattern) == 1 ) rswat_string_dist(pattern, lu, lu_split) else {
+
+    # find distances of components and average the results
+    dist_result = rowMeans(sapply(pattern, \(p) rswat_string_dist(p, lu, lu_split)))
+  }
 
   # initialize results vector to exact matches only
   is_exact = dist_result == 0
@@ -382,193 +395,3 @@ rswat_fuzzy_search = function(pattern, lu, fuzzy=5L, lu_split=FALSE, quiet=FALSE
   # extract all available info on matches, append distance scores
   return(data.frame(order=idx_result, distance=dist_result, name=lu[idx_result]))
 }
-
-
-
-
-
-
-#' Search variable names and description text in the SWAT+ I/O PDF
-#'
-#' @param pattern character vector, the search keyword string
-#' @param f character vector, the file names (sections of document) to include in search
-#' @param fuzzy integer, controlling the number of results returned (see details)
-#' @param intro logical, if TRUE, prints the introductory text for a file
-#' @param descriptions logical, if TRUE, searches description text instead of variable names
-#' @param desc_len integer, maximum number description text characters to return (per variable)
-#' @param pdf_df temporary, fix this
-#'
-#' @return data frame containing search results and their location in the PDF
-#' @export
-rswat_docs = function(pattern=NULL,
-                      f=NULL,
-                      fuzzy=1,
-                      intro=FALSE,
-                      descriptions=FALSE,
-                      desc_len=50L,
-                      .db=.rswat_db)
-{
-
-  # .db$docs$defs |> filter(file==f)
-  # cat(.db$docs$comment[[f]])
-
-
-  nm_show = c('file', 'name', 'desc_short')
-  lu_name = ifelse(descriptions, 'desc', 'name')
-
-  # file info mode
-  null_pattern = is.null(pattern)
-  if(null_pattern)
-  {
-    # a call without arguments
-    if( is.null(f) )
-    {
-      # name_all = unique(pdf_df[['defs']][['name']])
-      #table(pdf_df[['defs']][[lu_name]]) |> sort()
-      f_all = names(.db[['docs']][['comment']])
-      n_def = nrow(.db[['docs']][['defs']])
-      message(paste('found', n_def, 'variable, definitions', length(f_all), 'files'))
-      return(invisible(f_all))
-    }
-
-    # print the comment if requested
-    if(intro)
-    {
-      cat(.db[['docs']][['comment']][[f]])
-      return(invisible(pdf_df[['comment']][[f]]))
-    }
-
-    idx_out = .db[['docs']][['defs']][['file']] %in% f
-
-  } else {
-
-    fuzzy_result = rswat_fuzzy_search(pattern, .db[['docs']][['defs']][[lu_name]], fuzzy)
-    idx_out = fuzzy_result[['order']]
-    dist_out = fuzzy_result[['distance']]
-    nm_show = c('distance', nm_show)
-  }
-
-  # TODO: implement files filter
-  # TODO: implement file name in patter
-  # TODO: implement description in pattern
-
-
-
-  # copy the requested subset and truncate descriptions
-  out_df = .db[['docs']][['defs']][idx_out,]
-  if(!null_pattern) out_df[['distance']] = dist_out
-  out_df[['desc']] = gsub('\\s{2,}', ' ', out_df[['desc']], perl=TRUE)
-  desc_short = substr(out_df[['desc']], 1L, desc_len)
-  desc_pad = sapply(desc_len - nchar(desc_short), \(n) paste(rep(' ', n), collapse=''))
-  out_df[['desc_short']] = paste0(desc_short, desc_pad, ifelse(nchar(desc_pad) > 0, '   ', '...'))
-  #
-  return(out_df[, nm_show])
-}
-
-
-
-rswat_match_docs = function(f, desc_len=50L, .db=.rswat_db)
-{
-  # TODO: omit headers from pdf database
-  # TODO: match only the first instance of variable name when parsing descriptions!!
-  # TODO: omit id from matching
-  # TODO: add exception for weather-wgn.cli
-  # TODO: check for matching number of attributes (see nutrients.cha)
-
-  f_results = rswat_find(f, quiet=TRUE, .db=.db)
-  if(is.null(f_results)) stop('invalid f')
-
-  is_in_docs = .db[['docs']][['defs']][['file']] %in% f
-  f_docs = .db[['docs']][['defs']][is_in_docs, ]
-  if(nrow(f_docs) == 0) stop('invalid f')
-
-  # find string distance scores
-  f_nm = stats::setNames(nm=f_results[['name']])
-  search_result = lapply(f_nm, \(s) rswat_fuzzy_search(s, f_docs[['name']], fuzzy=3))
-
-  # remove exact matches from results list (they are already mapped)
-  is_exact = sapply(search_result, \(x) any(x[['distance']]==0))
-  if( any(is_exact) ) search_result = search_result[-which(is_exact)]
-
-  # also remove from hits on other keywords, and remove empty results
-  search_result = lapply(search_result, \(x) subset(x, !(name %in% f_nm[is_exact])))
-  is_empty = sapply(search_result, \(x) nrow(x) == 0)
-  if(any(is_empty)) search_result = search_result[!is_empty]
-
-  # vector with named NA entries that need mapping
-  f_nm[!is_exact] = NA
-
-  # add mappings in a loop until there's nothing left to map
-  while( length(search_result) > 0 )
-  {
-    # re-order the remaining assignments from best to worst
-    nm_ordered = names(sort(sapply(search_result, \(x) x[['distance']][1])))
-    idx_rm = match(nm_ordered[1], names(search_result))
-
-    # copy the best mapping
-    nm_match = search_result[[idx_rm]][['name']][1]
-    f_nm[names(search_result)[idx_rm]] = nm_match
-    nm_known = names(search_result)[idx_rm]
-
-    # update search list
-    search_result = search_result[-idx_rm]
-    search_result = lapply(search_result, \(x) subset(x, name != nm_match))
-    is_empty = sapply(search_result, \(x) nrow(x) == 0)
-
-    # clear empty results data frames
-    if(any(is_empty)) search_result = search_result[!is_empty]
-  }
-
-  # copy the descriptions to results and write attribute to indicate inexact matches
-  f_results[['alias']] = f_nm
-  f_results[['alias']][is_exact] = NA
-  desc_txt = f_docs[['desc']][ match(f_nm, f_docs[['name']]) ]
-
-  # create a truncated version of descriptions, append to return data frame
-  desc_short = substr(gsub('\\s{2,}', ' ', desc_txt, perl=TRUE), 1L, desc_len)
-  desc_short[ is.na(desc_short) ] = ''
-  desc_pad = sapply(desc_len - nchar(desc_short), \(n) paste(rep(' ', n), collapse=''))
-  f_results[['desc_short']] = paste0(desc_short, desc_pad, ifelse(nchar(desc_pad) > 0, '   ', '...'))
-  return(f_results)
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -225,12 +225,18 @@ rswat_string_dist = function(pattern, lu,
     # recursive call to compute individual distances
     if( any(is_punct) )
     {
-      # call in a loop over all string elements in lu that can be split, find best scores
-      split_list = lapply(lu_list[is_punct], \(x) rswat_string_dist(pattern, x, F, split_c, costs))
+      # call in a loop over all string elements in lu that can be split
+      split_list = lapply(lu_list[is_punct], \(x) {
+
+        rswat_string_dist(pattern, x, FALSE, split_c, costs)
+      })
+
+      # find best scores
       adist_best = sapply(split_list, min)
 
       # apply a small penalty for splitting, based on median component scores
-      split_penalty = min(split_c, min( dist_out[ !is_punct & (dist_out > 0) ] ))
+      id_other = !is_punct & (dist_out > 0)
+      split_penalty = min(split_c, min( ifelse(any(id_other), dist_out[id_other], split_c)))
       adist_best = adist_best + split_penalty * sapply(split_list, mean)
 
       # find minimum distance by list element and overwrite existing value

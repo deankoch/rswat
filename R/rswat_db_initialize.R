@@ -14,7 +14,7 @@
 #' @include rswat.R rswat_utils.R rswat_defaults.R
 #' @include rswat_db_config_methods.R rswat_db_config_methods_helpers.R
 #' @include rswat_write_methods.R rswat_write_methods_helpers.R
-#' @include rswat_find.R
+#' @include rswat_find.R rswat_docs.R
 #'
 #' @param quiet logical, indicates to suppress console messages
 #' @param .db rswat_db object, for internal use
