@@ -3,17 +3,17 @@
 #' Code to scrape the SWAT+ inputs documentation PDF for variable names and definitions.
 #'
 #' These functions are not exported by the rwsat package - you won't see them when you load
-#' the package - and they don't rely on any rswat functions. They are called by rswat_docs.R,
-#' which should reside in /data-raw (along with this file)
+#' the package. They are called by rswat_docs.R, which should be found in /data-raw (along
+#' with this file)
 #'
 #' So far this is tested on the 'inputs_swatplus_rev60_5.pdf' file only, which is current
 #' as of October, 2022. Call `rswat_open_io(pdf_path)` (where pdf_path points to the file)
-#' to make the data frame. The code depends on `pdftools::pdf_text` top render the PDF as
-#' plain text.
+#' to make the data frame. `pdftools::pdf_text` is used to render the PDF as plain text,
+#' and `rswat_parse_io_pdf` does most of the parsing.
 #'
-#' The regular expressions below are where the magic happens. They identify different
-#' elements of documentation text based on their formatting. These may need some tweaking when
-#' the documentation PDF is next updated.
+#' The regular expressions below control how variable definitions are found and grouped. They
+#' identify different elements of documentation text based on their formatting. This will
+#' probably require tweaking when the documentation PDF is next updated.
 
 # header/footer (appears on most pages) and variable name table headers
 regex_header = paste0('(', paste(c('^(\\s*[0-9]+\\s*SWAT\\+)',

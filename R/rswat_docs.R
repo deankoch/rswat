@@ -65,126 +65,162 @@ rswat_docs = function(pattern=NULL,
   # TODO: implement file name in patter
   # TODO: implement description in pattern
 
-
-
   # copy the requested subset and truncate descriptions
   out_df = .db[['docs']][['defs']][idx_out,]
   if(!null_pattern) out_df[['distance']] = dist_out
-  out_df[['desc']] = gsub('\\s{2,}', ' ', out_df[['desc']], perl=TRUE)
-  desc_short = substr(out_df[['desc']], 1L, desc_len)
-  desc_pad = sapply(desc_len - nchar(desc_short), \(n) paste(rep(' ', n), collapse=''))
-  out_df[['desc_short']] = paste0(desc_short, desc_pad, ifelse(nchar(desc_pad) > 0, '   ', '...'))
-  #
+  out_df[['desc_short']] = rswat_truncate_txt(out_df[['desc']], desc_len)
   return(out_df[, nm_show])
 }
 
 
 
-rswat_match_docs = function(f, desc_len=50L, .db=.rswat_db)
+rswat_match_docs = function(file_df,
+                            desc_weight=1,
+                            desc_len=25L,
+                            div_penalty=1,
+                            k_select=NULL,
+                            quiet=FALSE,
+                            .db=.rswat_db)
 {
-  # TODO: add exception for weather-wgn.cli
-  # TODO: check for matching number of attributes (see nutrients.cha)
+  # handle character input to file_df
+  if( is.character(file_df) ) file_df = rswat_find(f=file_df, quiet=TRUE)
 
-  f_results = rswat_find(f, quiet=TRUE, .db=.db)
-  if(is.null(f_results)) return(NULL)
+  # define output columns
+  nm_print = c('id_alias', 'name', 'alias', 'match', 'distance', 'desc')
+  file_df[['distance']] = NA_real_
+  file_df[['alias']] = NA_character_
+  file_df[['desc']] = NA_character_
+  file_df[['match']] = NA_character_
+  file_df[['id_alias']] = NA_integer_
 
-  is_in_docs = .db[['docs']][['defs']][['file']] %in% f
-  f_docs = .db[['docs']][['defs']][is_in_docs, ]
-  if(nrow(f_docs) == 0) return(NULL)
+  # extract the file name(s) and return from empty case
+  f = unique(file_df[['file']])
+  if( is.null(f) ) return( file_df[, nm_print, drop=FALSE] )
+  if( length(f) > 1 ) stop('multi-file case not implemented yet')
 
-  # mean distance among description words (first `desc_len` characters only)
-  f_docs[['desc_short']] = substr(f_docs[['desc']], 1L, desc_len)
+  # message when no documentation found
+  msg_fail = paste('no documentation found for file', f)
 
-  # find string distance scores
-  f_nm = stats::setNames(nm=f_results[['name']])
-  # search_result = lapply(f_nm, \(s) rswat_fuzzy_search(s, f_docs[['name']],
-  #                                                      fuzzy = 3,
-  #                                                      lu_split = TRUE,
-  #                                                      pattern_split = TRUE,
-  #                                                      quiet = TRUE))
+  # omit redundant rows
+  nm_unique = unique( file_df[['name']] )
+  file_df = file_df[match(file_df[['name']], nm_unique)[ seq_along(nm_unique) ],]
 
-
-  search_result = lapply(f_nm, \(s) {
-
-    # distance from variable name to string pattern
-    name_result = rswat_fuzzy_search(s, f_docs[['name']],
-                                     fuzzy = Inf,
-                                     lu_split = TRUE,
-                                     pattern_split = TRUE,
-                                     quiet = TRUE)
-
-    # distance to short descriptions (average over all words)
-    desc_result = rswat_fuzzy_search(s, f_docs[['desc_short']],
-                                     fuzzy = Inf,
-                                     lu_split = TRUE,
-                                     pattern_split = TRUE,
-                                     quiet = TRUE)
-
-    # description results are in a different order
-    idx_reorder = match(desc_result[['order']], name_result[['order']])
-    name_result[['distance_desc']] = desc_result[['distance']][ idx_reorder ]
-    name_result[['desc']] = desc_result[['name']][ idx_reorder ]
-
-    # make a new combined distance score
-    name_result[['distance_name']] = name_result[['distance']]
-    name_result[['distance']] = rowMeans( name_result[c('distance_name', 'distance_desc')] )
-
-    # exact name matches remain 0 (best score)
-    name_result[['distance']][ name_result[['distance_name']] == 0 ] = 0
-    return(name_result)
-  })
-
-  # remove exact matches from results list (they are already mapped)
-  is_exact = sapply(search_result, \(x) any(x[['distance']]==0))
-  if( any(is_exact) ) search_result = search_result[-which(is_exact)]
-
-  # also remove from hits on other keywords, and remove empty results
-  search_result = lapply(search_result, \(x) subset(x, !(name %in% f_nm[is_exact])))
-  is_empty = sapply(search_result, \(x) nrow(x) == 0)
-  if(any(is_empty)) search_result = search_result[!is_empty]
-
-  # vector with named NA entries to fill in the loop below
-  f_nm[!is_exact] = NA
-  dist_nm = f_nm
-  dist_nm[] = 0
-
-  # add mappings in a loop until there's nothing left to map
-  while( length(search_result) > 0 )
+  # index the variable definitions for this file
+  is_docs_on_f = .db[['docs']][['defs']][['file']] == f
+  if( !any(is_docs_on_f) )
   {
-    # re-order the remaining assignments from best to worst
-    nm_ordered = names(sort(sapply(search_result, \(x) x[['distance']][1])))
-    idx_rm = match(nm_ordered[1], names(search_result))
-
-    # copy the best mapping and its distance
-    nm_match = search_result[[idx_rm]][['name']][1]
-    f_nm[ names(search_result)[idx_rm] ] = nm_match
-    dist_nm[ names(search_result)[idx_rm] ] = search_result[[idx_rm]][['distance']][1]
-
-    # update search list
-    search_result = search_result[-idx_rm]
-    search_result = lapply(search_result, \(x) subset(x, name != nm_match))
-    is_empty = sapply(search_result, \(x) nrow(x) == 0)
-
-    # clear empty results data frames
-    if(any(is_empty)) search_result = search_result[!is_empty]
+    if( !quiet ) message(msg_fail)
+    return( file_df[, nm_print, drop=FALSE] )
   }
 
-  # copy the distances and aliases to results
-  f_results[['distance']] = dist_nm
-  f_results[['alias']] = f_nm
-  f_results[['alias']][is_exact] = NA
+  # copy required elements from database
+  docs_df = data.frame(
 
-  # copy description text via the new mapping
-  idx_match = match(f_nm, f_docs[['name']])
-  desc_txt = f_docs[['desc']][idx_match]
+    # name and truncated description
+    name = .db[['docs']][['defs']][['name']][is_docs_on_f],
+    desc = substr(.db[['docs']][['defs']][['desc']][is_docs_on_f], 1L, desc_len)
+  )
 
-  # create a truncated version of descriptions
-  desc_short = substr(gsub('\\s{2,}', ' ', desc_txt, perl=TRUE), 1L, desc_len)
-  desc_short[ is.na(desc_short) ] = ''
-  desc_pad = sapply(desc_len - nchar(desc_short), \(n) paste(rep(' ', n), collapse=''))
-  f_results[['desc_short']] = paste0(desc_short, desc_pad, ifelse(nchar(desc_pad) > 0, '   ', '...'))
-  f_results[['distance']][ is.na(idx_match) ] = NA
+  # omit two problematic strings from fuzzy name matching
+  nm_omit = .rswat_gv_nm_nomatch()
+  docs_df[['skip']] = docs_df[['name']] %in% nm_omit
+  file_df[['skip']] = file_df[['name']] %in% nm_omit
+
+  # end search if everything was skipped
+  is_file_incl = !file_df[['skip']]
+  is_docs_incl = !docs_df[['skip']]
+  if( all(!is_file_incl) | all(!is_docs_incl) )
+  {
+    if( !quiet ) message(msg_fail)
+    return( file_df[, nm_print, drop=FALSE] )
+  }
+
+  # find index of exact matches
+  idx_exact_in_file = which(is_file_incl)[ file_df[['name']][is_file_incl] %in% docs_df[['name']][is_docs_incl] ]
+  idx_exact_in_docs = match(file_df[['name']][idx_exact_in_file], docs_df[['name']])
+  any_exact = length(idx_exact_in_file) > 0
+  if( any_exact )
+  {
+    # assign exact matches - these are fixed and not searchable below
+    file_df[['alias']][ idx_exact_in_file ] = ''
+    file_df[['match']][ idx_exact_in_file ] = '***'
+    file_df[['desc']][ idx_exact_in_file ] = docs_df[['desc']][idx_exact_in_docs]
+    file_df[['id_alias']][ idx_exact_in_file ] = idx_exact_in_docs
+    file_df[['distance']][ idx_exact_in_file ] = rep(0, length(idx_exact_in_file))
+    file_df[['skip']][ idx_exact_in_file ] = TRUE
+    docs_df[['skip']][ idx_exact_in_docs ] = TRUE
+
+    # update exclusion flags
+    is_file_incl = !file_df[['skip']]
+    is_docs_incl = !docs_df[['skip']]
+  }
+
+  # end of exact search
+  if(  sum(is_file_incl) == 0 )
+  {
+    if( !quiet ) message('all variable names matched exactly')
+    return( file_df[, nm_print, drop=FALSE] )
+  }
+
+  # initial fuzzy matching
+  match_result = rswat_fuzzy_match(name_df = file_df,
+                                   alias_df = docs_df,
+                                   skip = TRUE,
+                                   alias_desc = TRUE,
+                                   name_split=TRUE,
+                                   alias_split=TRUE,
+                                   k_select = k_select,
+                                   div_penalty = div_penalty)
+
+  # check whether elements are in sequence
+  is_unit_diff = diff(match_result[['id_alias']]) == 1L
+  is_diagonal = match_result[['id_alias']] == seq(nrow(match_result))
+  is_unit_diff[ is.na(is_unit_diff) ] = TRUE
+  is_diagonal[ is.na(is_diagonal) ] = TRUE
+  is_seq = is_diagonal | c(is_unit_diff, FALSE) | c(FALSE, is_unit_diff)
+  data.frame(id=match_result$id_alias, is_seq=is_seq)
 
 
-  return(f_results)
+  # second round of matching for out-of-sequence elements
+  if( !all(is_seq) )
+  {
+    # flag sequential elements (and their aliases) for exclusion from search
+    match_result[['skip']][is_seq] = TRUE
+    alias_exclude = match_result[['alias']][ match_result[['skip']] ]
+    docs_df[['skip']][ docs_df[['name']] %in% alias_exclude ] = TRUE
+
+    # second round of matching on non-sequential elements only
+    match_result = rswat_fuzzy_match(name_df = match_result,
+                                     alias_df = docs_df,
+                                     skip = TRUE,
+                                     alias_desc = TRUE,
+                                     name_split = FALSE,
+                                     alias_split = FALSE,
+                                     k_select = k_select,
+                                     div_penalty = div_penalty)
+  }
+
+  # round distances for printing
+  match_result[['distance']] = round(match_result[['distance']], 2)
+
+  # check for items that were not mapped
+  if( !quiet )
+  {
+    # known names without a match in docs
+    is_missing = is.na(match_result[['alias']]) & !file_df[['skip']]
+    msg_missing = paste(match_result[['name']][is_missing], collapse=', ')
+    if( any(is_missing) ) message(paste(sum(is_missing), 'names not matched:', msg_missing))
+
+    # variables in docs that couldn't be matched to the supplied names
+    is_unused = !( docs_df[['name']] %in% match_result[['alias']] ) & !docs_df[['skip']]
+    if( any(is_unused) )
+    {
+      msg_unused = paste(docs_df[['name']][is_unused], collapse=', ')
+      message(paste(sum(is_unused), 'unmatched definitions in documentation:', msg_unused))
+    }
+  }
+
+  # return match results
+  return(match_result[, nm_print])
 }
+

@@ -9,17 +9,18 @@ rswat_show_search(
   fuzzy = 2L,
   n_max = 10L,
   nm_print = names(results),
+  quiet = FALSE,
   .db = .rswat_db
 )
 }
 \arguments{
-\item{results}{data frame with numeric \code{distance} and character \code{name}, \code{file} columns}
+\item{results}{data frame with numeric \code{distance} and character \code{name} columns}
 
 \item{fuzzy}{integer, controlling the number of results returned (see \code{?rswat_find})}
 
 \item{n_max}{positive integer, the maximum number of search results to print}
 
-\item{nm_print}{character vector, a subset of \code{names(results)} to return}
+\item{nm_print}{character vector, usually a subset of \code{names(results)} (see details)}
 
 \item{.db}{rswat_db object, for internal use}
 }
@@ -33,9 +34,13 @@ depending on \code{fuzzy}. Categories are based on the match strength scores in 
 'distance' (lower is better, see \code{?rswat_fuzzy_search}).
 }
 \details{
-\code{results} should have at least one additional column containing character strings
-describing match results. \code{nm_print} controls which columns are printed (normally 'name'
+\code{results} must have an additional column named 'nm_lu', containing the character
+strings that were matched. \code{nm_print} controls which columns are printed (normally 'name'
 and 'file', and possibly 'description'), and \code{n_max} controls many rows are printed.
 
-The function invisibly returns all rows of \code{results[, nm_print]} (independent of \code{n_max})
+If a name in \code{nm_print} is not found among the columns of \code{results}, the function
+uses the \code{get_cio_df} method of \code{.db} to look it up. Get a list of valid names for
+this feature with \code{names(.rswat_db$get_cio_df())}.
+
+All rows of \code{results[, nm_print]} are returned invisibly, independent of \code{n_max}.
 }

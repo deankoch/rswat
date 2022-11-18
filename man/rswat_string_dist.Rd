@@ -8,8 +8,9 @@ rswat_string_dist(
   pattern,
   lu,
   lu_split = FALSE,
+  pattern_split = FALSE,
   split_c = 1e-06,
-  costs = list(ins = 4, del = 1, sub = 2)
+  costs = .rswat_gv_costs()
 )
 }
 \arguments{

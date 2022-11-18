@@ -21,7 +21,7 @@ rswat_find(
 
 \item{fuzzy}{numeric, specifying tolerance for approximate matches (see details)}
 
-\item{trim}{integer between 0-3, higher means more simplification in printed result}
+\item{trim}{integer between 1-5, higher means more simplification in printed result}
 
 \item{n_max}{positive integer, the maximum number of search results to return}
 

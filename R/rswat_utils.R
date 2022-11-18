@@ -156,32 +156,70 @@ rswat_date_conversion = function(d) {
 #'
 rswat_string_dist = function(pattern, lu,
                              lu_split = FALSE,
+                             pattern_split = FALSE,
                              split_c = 1e-6,
                              costs = .rswat_gv_costs())
 {
+  # loop for 2+ patterns
+  if( length(pattern) > 1 )
+  {
+    # bind results into a matrix
+    dist_mat = do.call(cbind, lapply(pattern, \(p) {
+
+      rswat_string_dist(pattern = p,
+                        lu = lu,
+                        lu_split = lu_split,
+                        pattern_split = pattern_split,
+                        split_c = split_c,
+                        costs = costs)
+    }))
+
+    # one column for each pattern searched
+    colnames(dist_mat) = pattern
+    rownames(dist_mat) = lu
+    return(dist_mat)
+  }
+
   # handle empty search pattern case
   if( pattern == '*' ) return( rep(0, length(lu)) )
 
-  # count the number of characters in pattern and check for logical OR
-  pattern_len = nchar(pattern)
-  pattern_pipe = strsplit(pattern, '\\|')[[1]]
-  pattern_pipe = pattern_pipe[nchar(pattern_pipe) > 0]
-  if( length(pattern_pipe) > 1 )
+  # split pattern if requested
+  if( pattern_split )
   {
-    # match the split patterns separately and return parallel minimum
-    dist_mat = sapply(pattern_pipe, \(p) rswat_string_dist(p, lu, lu_split, split_c, costs))
-    return( apply(dist_mat, 1, min) )
+    # get the distance first without splitting
+    dist_out = rswat_string_dist(pattern = pattern,
+                                 lu = lu,
+                                 pattern_split = FALSE,
+                                 lu_split = lu_split,
+                                 split_c = split_c,
+                                 costs = costs)
+
+    # split at punctuation characters, ignoring beginning/end of string
+    pattern = strsplit(pattern, '[[:punct:]]+|\\s+')[[1]]
+
+    # return no-split distances if there was no punctuation
+    is_punct = length(pattern) > 1
+    if(!is_punct) return(dist_out)
+
+    # call in a loop over all string elements in pattern that can be split
+    adist_list = lapply(pattern, \(p) rswat_string_dist(pattern = p,
+                                                        lu = lu,
+                                                        lu_split = lu_split,
+                                                        pattern_split = FALSE,
+                                                        split_c = split_c,
+                                                        costs = costs))
+
+    # find best scores and apply a small penalty for splitting
+    adist_best = apply(do.call(cbind, adist_list), 1L, min) + split_c
+
+    # find minimum distance by list element and overwrite existing value
+    is_improved = adist_best < dist_out
+    if( any(is_improved) ) dist_out[is_improved] = adist_best[is_improved]
+    return(dist_out)
   }
 
-  # detect logical AND in pattern
-  pattern_split = strsplit(pattern, '\\s+')[[1]]
-  pattern_split = pattern_split[nchar(pattern_split) > 0]
-  if( length(pattern_split) > 1 )
-  {
-    # match the split patterns separately and return means
-    dist_mat = sapply(pattern_split, \(p) rswat_string_dist(p, lu, lu_split, split_c, costs))
-    return( rowMeans(dist_mat) )
-  }
+  # # count the number of characters in pattern
+  pattern_len = nchar(pattern)
 
   # convert to lowercase
   pattern = tolower(pattern)
@@ -218,7 +256,7 @@ rswat_string_dist = function(pattern, lu,
   if( lu_split )
   {
     # split at punctuation characters, ignoring beginning/end of string
-    lu_list = strsplit(lu, '[[:punct:]]|\\s+')
+    lu_list = strsplit(lu, '[[:punct:]]+|\\s+')
     lu_len = sapply(lu_list, length)
     is_punct = lu_len > 1
 
@@ -226,26 +264,199 @@ rswat_string_dist = function(pattern, lu,
     if( any(is_punct) )
     {
       # call in a loop over all string elements in lu that can be split
-      split_list = lapply(lu_list[is_punct], \(x) {
-
-        rswat_string_dist(pattern, x, FALSE, split_c, costs)
-      })
+      adist_list = lapply(lu_list[is_punct], \(x) rswat_string_dist(pattern = pattern,
+                                                                    lu = x,
+                                                                    lu_split=FALSE,
+                                                                    pattern_split = FALSE,
+                                                                    split_c = split_c,
+                                                                    costs = costs))
 
       # find best scores
-      adist_best = sapply(split_list, min)
+      adist_best = sapply(adist_list, min)
 
       # apply a small penalty for splitting, based on median component scores
       id_other = !is_punct & (dist_out > 0)
       split_penalty = min(split_c, min( ifelse(any(id_other), dist_out[id_other], split_c)))
-      adist_best = adist_best + split_penalty * sapply(split_list, mean)
+      adist_best = adist_best + split_penalty * sapply(adist_list, mean)
 
       # find minimum distance by list element and overwrite existing value
-      dist_out[is_punct] = adist_best
+      is_improved = adist_best < dist_out[is_punct]
+      if( any(is_improved) ) dist_out[is_punct][is_improved] = adist_best[is_improved]
     }
   }
 
   return(dist_out)
 }
+
+
+#' Approximate assignment based on a distance matrix
+#'
+#' Finds an assignment of `nrow(m)` labels to `ncol(m)` objects based on
+#' the pairwise distances in `m` (where `m[i,j]` is the distance between the
+#' `i`th label and the `j`th object), with no label assigned more than once.
+#'
+#' This uses a simple greedy algorithm where in each iteration the least distance
+#' map is assigned and the label removed from the pool of candidates. The function
+#' returns a vector indexing the label for each object. If there are fewer labels
+#' than objects, this vector will have `NA`s for unmapped objects.
+#'
+#' @param m a non-negative numeric distance matrix
+#'
+#' @return a length-`ncol(m)` integer vector mapping labels or `NA`
+#' @export
+rswat_amatch = function(m)
+{
+  # build a matrix of vectorization indices
+  n_label = nrow(m)
+  m_i = matrix(seq_along(m), n_label)
+
+  # initialize to the least distance mapping in full matrix
+  k = which.min(m)
+  ij = matrix(nrow=0, ncol=2)
+  colnames(ij) = c('i', 'j')
+
+  #  greedy assignment until there's nothing left
+  n_leftover = max(0, -diff(dim(m)))
+  while( nrow(ij) < ( n_label - n_leftover ) ) {
+
+    # index in the full matrix
+    k_full = ifelse(nrow(ij) == 0, k, m_i[ -ij[,'i'], -ij[,'j'], drop=FALSE][k])
+
+    # inverse vectorization locates row/column in full matrix
+    j_new = as.integer( ceiling(k_full / n_label) )
+    i_new = as.integer(k_full - n_label * (j_new-1))
+    ij_new = c(i=i_new, j=j_new)
+
+    # add to running list of rows/columns to exclude
+    ij = rbind(ij, ij_new)
+    ij = ij[order(ij[,'j']), , drop=FALSE]
+
+    # find the least distance element in the updated sub-matrix
+    k = which.min( m[ -ij[,'i'], -ij[,'j'], drop=FALSE] )
+  }
+
+  # return as a single vector
+  out_vec = rep(NA, ncol(m))
+  out_vec[ ij[,'j'] ] = ij[,'i']
+  names(out_vec) = colnames(m)
+  return(out_vec)
+}
+
+# both dfs must have 'name' columns
+rswat_fuzzy_match = function(name_df,
+                             alias_df,
+                             skip = TRUE,
+                             alias_desc = TRUE,
+                             name_split = TRUE,
+                             alias_split = TRUE,
+                             div_penalty = 1,
+                             k_select = NULL)
+{
+
+
+  # TODO: toggle skip
+  # TODO: toggle symmetric, add lu_split etc
+
+  # flags to include an item in searching
+  is_name_used = !name_df[['skip']]
+  is_alias_used = !alias_df[['skip']]
+
+  # TODO: basic checks
+  if( !any(is_name_used) | !any(is_alias_used) ) return(name_df)
+
+  # set up pattern vector and look-up strings
+  name_key = stats::setNames(nm=name_df[['name']][is_name_used])
+  alias_nm = alias_df[['name']][is_alias_used]
+  if(alias_desc) { alias_lu = alias_nm } else {
+
+    # this mode assigns equal almost equal weight to description text
+    alias_lu = do.call(paste, list(alias_nm, alias_df[['desc']][is_alias_used]))
+    names(alias_lu) = alias_nm
+  }
+
+  # distance matrix for forward search
+  d_mat = rswat_string_dist(pattern = name_key,
+                            lu = alias_lu,
+                            lu_split = alias_split,
+                            pattern_split = name_split)
+
+  # search in the reverse direction and take transpose to get new distances
+  d_mat_t = t(rswat_string_dist(pattern = alias_nm,
+                                lu = name_key,
+                                lu_split = name_split,
+                                pattern_split = alias_split))
+
+  # penalty for divergence from input order
+  if(is.null(k_select)) k_select = min(diff(dim(d_mat_t)-2L), 0):max(1L + diff(dim(d_mat_t)), 0)
+  k_select = min(diff(dim(d_mat_t)), 0):max(diff(dim(d_mat_t)), 0)
+  pen_mat = Reduce('|', lapply(k_select, \(k) col(d_mat_t) - row(d_mat_t) == k ))
+  pen_mat = div_penalty * !pen_mat
+
+  # element-wise average of the two matrices plus penalty
+  d_mat_m = pen_mat + ( d_mat_t + d_mat ) / 2
+  rownames(d_mat_m) = alias_nm
+  colnames(d_mat_m) = name_key
+
+  # approximate matching
+  idx_amatch = rswat_amatch(d_mat_m)
+
+  # extract distances for result and indexing vectors for merging name_df, alias_df
+  match_dist = diag(d_mat_m[idx_amatch, names(idx_amatch), drop=FALSE])
+
+  # key to merge datasets
+  idx_alias = which(is_alias_used)[ idx_amatch ]
+  idx_name = which(is_name_used)[ name_key %in% names(idx_amatch) ]
+
+  # assign mapping, distance to name_df, then copy any extra fields from alias_df
+  name_df[['id_alias']][idx_name] = idx_alias
+  name_df[['distance']][idx_name] = match_dist
+  name_df[['alias']][idx_name] = alias_df[['name']][idx_alias]
+  alias_extra = names(alias_df)[ !( names(alias_df) %in% c('name', 'skip') ) ]
+  name_df[idx_name, alias_extra] = alias_df[idx_alias, alias_extra, drop=FALSE]
+
+  # update star rankings then return
+  name_df[['match']][idx_name] = ifelse(match_dist < 1, '**', '*')
+  return(name_df)
+}
+
+
+
+rswat_truncate_txt = function(txt, max_len=NULL, NA_char='NA', pad_char=' ', more_char='...')
+{
+  # handle data frame input
+  if( is.data.frame(txt) ) return( data.frame(
+
+    # loop over input columns
+    lapply(txt, \(txt_column) {
+
+      rswat_truncate_txt(txt_column,
+                         max_len = max_len,
+                         NA_char = NA_char,
+                         pad_char = pad_char,
+                         more_char = more_char)
+    })
+  ))
+
+  # lengths of input strings (default max_len is input max length)
+  n_src = nchar(txt, keepNA=FALSE)
+  if( is.null(max_len) ) max_len = max(n_src)
+
+  # create a truncated version of character string and convert NAs to empty strings
+  txt_short = substr(gsub('\\s{2,}', pad_char, txt, perl=TRUE), 1L, max_len)
+  txt_short[ is.na(txt_short) ] = NA_char
+  n_short = nchar(txt_short)
+
+  # vector of padding to add
+  txt_pad = sapply(max_len - n_short, \(n) paste(rep(pad_char, n), collapse=''))
+
+  # suffix indicating when a string has been truncated
+  empty_char = paste(rep(pad_char, nchar(more_char)), collapse='')
+  txt_suffix = ifelse(n_src > n_short, more_char, empty_char)
+  return( paste0(txt_short, txt_pad, txt_suffix) )
+}
+
+
+
 
 
 #' Fuzzy text search based on rswat_string_dist
@@ -308,60 +519,25 @@ rswat_fuzzy_search = function(pattern,
                               lu,
                               fuzzy = 5L,
                               lu_split = FALSE,
+                              pattern_split = FALSE,
                               quiet = FALSE)
 {
   # multiple pattern results returned in a list
   if( length(pattern) > 1 )
   {
-    return(
-
-      # evaluate patterns in a loop
-      lapply(pattern, \(p) rswat_fuzzy_search(p,
-                                              lu = lu,
-                                              fuzzy = fuzzy,
-                                              lu_split = lu_split,
-                                              quiet = TRUE))
-    )
-  }
-
-  # list (or dataframe) lookup tables are handled differently
-  if( is.list(lu) )
-  {
-    # convert NAs to empty character
-    lu = replace(lu, is.na(lu), '')
-
-    # check for invalid input
-    msg_bad_len = 'unequal lengths in list elements of lu'
-    msg_bad_class = 'some elements of lu were not of character class'
-    if( any( diff(sapply(lu, length)) != 0 ) ) stop(msg_bad_len)
-    if( !all( sapply(lu, is.character) ) ) stop(msg_bad_class)
-    if( length(lu) == 1L ) stop('lu list must have more than one element')
-
-    # recursive call over columns
-    results_list =  lapply(lu, \(lu_field) rswat_fuzzy_search(pattern,
-                                                              lu = lu_field,
-                                                              fuzzy = length(lu_field),
-                                                              lu_split = lu_split,
-                                                              quiet = TRUE))
-
-    # keep only the first name in lu
-    results = results_list[[1L]][ c('order', 'name', 'distance') ]
-
-    # make a data frame from the other distances
-    nm_append = paste0('distance_', seq_along(results_list)[-1])
-    results_extra = data.frame( lapply(setNames(results_list[-1], nm=nm_append), \(r) {
-
-      # reorder to match the order for the first name in lu
-      r[['distance']][ match(results[['order']], r[['order']]) ]
-
-    }) )
-
-    # return the first fuzzy combined results as single data frame
-    return( head(cbind(results, results_extra), fuzzy) )
+    return( lapply(pattern, \(p) rswat_fuzzy_search(pattern = p,
+                                                    lu = lu,
+                                                    fuzzy = fuzzy,
+                                                    lu_split = lu_split,
+                                                    pattern_split = pattern_split,
+                                                    quiet = TRUE)))
   }
 
   # find string distances for single string pattern and character vector lu
-  dist_result = rswat_string_dist(pattern, lu, lu_split)
+  dist_result = rswat_string_dist(pattern = pattern,
+                                  lu = lu,
+                                  lu_split = lu_split,
+                                  pattern_split = pattern_split)
 
   # initialize results vector to exact matches only
   is_exact = dist_result == 0
@@ -402,39 +578,3 @@ rswat_fuzzy_search = function(pattern,
   # extract all available info on matches, append distance scores
   return(data.frame(order=idx_result, distance=dist_result, name=lu[idx_result]))
 }
-
-
-rswat_truncate_txt = function(txt, max_len=NULL, NA_char='NA', pad_char=' ', more_char='...')
-{
-  # handle data frame input
-  if( is.data.frame(txt) ) return( data.frame(
-
-    # loop over input columns
-    lapply(txt, \(txt_column) {
-
-      rswat_truncate_txt(txt_column,
-                         max_len = max_len,
-                         NA_char = NA_char,
-                         pad_char = pad_char,
-                         more_char = more_char)
-    })
-  ))
-
-  # lengths of input strings (default max_len is input max length)
-  n_src = nchar(txt, keepNA=FALSE)
-  if( is.null(max_len) ) max_len = max(n_src)
-
-  # create a truncated version of character string and convert NAs to empty strings
-  txt_short = substr(gsub('\\s{2,}', pad_char, txt, perl=TRUE), 1L, max_len)
-  txt_short[ is.na(txt_short) ] = NA_char
-  n_short = nchar(txt_short)
-
-  # vector of padding to add
-  txt_pad = sapply(max_len - n_short, \(n) paste(rep(pad_char, n), collapse=''))
-
-  # suffix indicating when a string has been truncated
-  empty_char = paste(rep(pad_char, nchar(more_char)), collapse='')
-  txt_suffix = ifelse(n_src > n_short, more_char, empty_char)
-  return( paste0(txt_short, txt_pad, txt_suffix) )
-}
-

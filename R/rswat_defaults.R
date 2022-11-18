@@ -53,20 +53,11 @@
 # attributes to display search results with trim
 .rswat_gv_find_trim = function(trim) switch(trim,
 
-  `1` = c('name',
-          'field_num',
-          'line_num',
-          'file',
-          'table',
-          'distance'),
-
-  `2` = c('name',
-          'file',
-          'table',
-          'distance'),
-
-  `3` = c('name',
-          'file')
+  '5' = c('name', 'file', 'class', 'group', 'type', 'n_prec',  'table', 'field_num', 'line_num'),
+  '4' = c('name', 'file', 'class', 'group', 'type', 'table'),
+  '3' = c('name', 'file', 'group'),
+  '2' = c('name', 'file'),
+  '1' = c('name')
 )
 
 # simulation time step size codes (docs unclear on sub-hourly case, so it is not supported)
@@ -75,3 +66,9 @@
                                     hourly = 24L,
                                     sub_hourly = NA_integer_)
 
+
+# default costs for base::adist in rswat_string_dist
+.rswat_gv_costs = function() list(ins=3, del=1, sub=2)
+
+# variables names to omit from documentation search in rswat_match_docs
+.rswat_gv_nm_nomatch = function() c('plantnm', 'name', 'id', 'description')
