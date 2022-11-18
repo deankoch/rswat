@@ -87,8 +87,13 @@ rswat_db$methods( list(
     if( length(stor_df[[f]]) > 0 )
     {
       # set the 'loaded' flag in files metadata and directory list
+      is_new = which(cio_df[['file']] == f)
+      cio_df[['loaded']][is_new] <<- TRUE
       line_df_temp[['loaded']] <<- TRUE
-      cio_df[['loaded']][ which(cio_df[['file']] == f) ] <<- TRUE
+
+      # add type and group columns to temporary variables data frame
+      line_df_temp[['type']] <<- cio_df[['type']][is_new]
+      line_df_temp[['group']] <<- cio_df[['group']][is_new]
 
       # copy contents of temporary data frame to the persistent one then tidy row names
       line_df <<- rbind(subset(line_df, file != f), line_df_temp)
@@ -96,7 +101,6 @@ rswat_db$methods( list(
 
       # parse file.cio to update groups
       if(f == 'file.cio') parse_file_cio(refresh=FALSE, quiet=TRUE)
-
     }
 
     # update OS file info
@@ -136,14 +140,31 @@ rswat_db$methods( list(
       # find relevant rows of temporary metadata list
       is_table = line_df_temp[['table']] == tn
 
-      # assign variable 'name' based on field order and header spacing
+      # find mapping from parameters data frame to line_df based on field order and header spacing
       nm_header = names(stor_df[[f]][[tn]])
       n_col = line_df_temp[['field_num']][is_table] |> max() |> pmin(length(nm_header))
-      idx_colj = lapply(seq(n_col), \(j) which(line_df_temp[['field_num']][is_table] == j))
-      header_j = lapply(seq(n_col), \(j) rep(nm_header[j], length(idx_colj[[j]])) )
+      idx_col_j = lapply(seq(n_col), \(j) which(line_df_temp[['field_num']][is_table] == j))
 
-      # copy to temporary metadata list
-      line_df_temp[['name']][is_table][ unlist(idx_colj) ] <<- unlist(header_j)
+      # assign variable 'name' (writes to both tabular and header entries)
+      header_j = lapply(seq(n_col), \(j) rep(nm_header[j], length(idx_col_j[[j]])) )
+      line_df_temp[['name']][is_table][ unlist(idx_col_j) ] <<- unlist(header_j)
+
+      # repeat for 'class' (writes to both tabular and header entries)
+      nm_class = unlist( lapply(stor_df[[f]][[tn]], class) )
+      class_j = lapply(seq(n_col), \(j) rep(nm_class[j], length(idx_col_j[[j]])) )
+      line_df_temp[['class']][is_table][ unlist(idx_col_j) ] <<- unlist(class_j)
+
+      # find the known precision levels (based on first row of table)
+      nm_nprec = lapply(idx_col_j, \(j) {
+
+        # the ifelse handles cases where an entry is missing or the table has no rows
+        line_df_temp[['n_prec']][is_table][ifelse(length(j) > 1, j[2], NA) ]
+      })
+
+      # copy precision info to headers
+      is_header = is_table & line_df_temp[['header']]
+      n_copy = min(sum(is_header), length(unlist(nm_nprec)))
+      line_df_temp[['n_prec']][is_header][seq(n_copy)] <<- unlist(nm_nprec)[seq(n_copy)]
     }
 
     if(output) return(stor_df[[f]])
@@ -166,7 +187,7 @@ rswat_db$methods( list(
     # TODO: some hacking may be required for exceptional files like gwflow, weather.wgn here?
 
     # assign precisions
-    line_df_temp <<- rswat_nprec_txt(line_df_temp, quiet=TRUE)
+    line_df_temp <<- rswat_n_prec_txt(line_df_temp, quiet=TRUE)
 
     # copy comment (if any) before returning
     if(f %in% names(txt)) cio_df[['msg']][ which(cio_df[['file']] == f) ] <<- txt[[f]][[1]]

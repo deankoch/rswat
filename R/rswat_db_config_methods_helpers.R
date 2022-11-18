@@ -88,6 +88,8 @@ rswat_scan_txt = function(txt=NULL, f=NULL, delim='\\s+')
 {
   # define attribute names and types
   line_df = data.frame(file = character(0), # file name
+                       type = character(0), # file type
+                       group = character(0), # file group
                        string = character(0), # text string in the field (no whitespace)
                        name = character(0), # name of the associated variable
                        line_num = integer(0), # line number of field
@@ -97,7 +99,7 @@ rswat_scan_txt = function(txt=NULL, f=NULL, delim='\\s+')
                        header = logical(0), # does the field appear to lie on a header row?
                        tabular = logical(0), # does the field appear to be tabular data?
                        table = integer(0), # table number for files with multiple tables
-                       nprec = integer(0)) # number of digits after decimal point
+                       n_prec = integer(0)) # number of digits after decimal point
 
   # if there are no non-empty lines, we are finished
   n_txt = length(txt)
@@ -345,9 +347,9 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL)
 #' @param table_num integer, the table number to load (or `NULL` to load all)
 #' @param quiet logical, indicates to suppress console messages
 #'
-#' @return data frame, a copy of `line_df` with the 'nprec' column updated
+#' @return data frame, a copy of `line_df` with the 'n_prec' column updated
 #' @export
-rswat_nprec_txt = function(line_df, table_num=NULL, quiet=FALSE)
+rswat_n_prec_txt = function(line_df, table_num=NULL, quiet=FALSE)
 {
   # find all available table numbers
   table_num_vec = line_df[['table']]
@@ -356,7 +358,7 @@ rswat_nprec_txt = function(line_df, table_num=NULL, quiet=FALSE)
   {
     # recursive call to return all tables in a list if no table number specified
     rswat_nprec_result = lapply(all_num, \(tn) {
-      rswat_nprec_txt(subset(line_df, table==tn), tn, quiet)
+      rswat_n_prec_txt(subset(line_df, table==tn), tn, quiet)
     })
     return(do.call(rbind, rswat_nprec_result))
   }
@@ -372,7 +374,7 @@ rswat_nprec_txt = function(line_df, table_num=NULL, quiet=FALSE)
 
   # find the requested table info in line_df
   idx_row_requested = which( !is.na(table_num_vec) & (table_num_vec == table_num) )
-  nm_needed = c('string', 'line_num', 'field_num', 'table', 'class', 'nprec')
+  nm_needed = c('string', 'line_num', 'field_num', 'table', 'class', 'n_prec')
 
   # identify numeric fields. If there are none, we are done
   is_num = line_df[['class']][idx_row_requested] == 'numeric'
@@ -387,19 +389,19 @@ rswat_nprec_txt = function(line_df, table_num=NULL, quiet=FALSE)
 
   # count digits after the dot
   decimal_bycol = lapply(string_bycol, \(s) gregexpr('\\.[0-9]+', s, perl=T))
-  nprec_bycol = lapply(decimal_bycol, \(d) sapply(d, \(m) attr(m, 'match.length') - 1 ))
+  n_prec_bycol = lapply(decimal_bycol, \(d) sapply(d, \(m) attr(m, 'match.length') - 1 ))
 
   # use maximum precision in case of inconsistencies within a column (and warn user)
-  is_consistent = sapply(nprec_bycol, \(n) all(n == max(n)))
+  is_consistent = sapply(n_prec_bycol, \(n) all(n == max(n)))
   if( any(!is_consistent) )
   {
-    nprec_bycol = lapply(nprec_bycol, \(n) rep(max(n), length(n)))
+    n_prec_bycol = lapply(n_prec_bycol, \(n) rep(max(n), length(n)))
     f = line_df[['file']][1]
     msg_file = paste0('in file ', f, ', table ', table_num, ':')
     if(!quiet) warning(paste(msg_file, 'inconsistent precision within columns (using maximum)'))
   }
 
-  # write the nprec attribute and finish
-  line_df[['nprec']][idx_row_requested[is_num]] = unlist(nprec_bycol)
+  # write the n_prec attribute and finish
+  line_df[['n_prec']][idx_row_requested[is_num]] = unlist(n_prec_bycol)
   return(line_df)
 }

@@ -113,8 +113,20 @@ rswat_db = setRefClass('rswat_db',
     set_exe_path = function(p) exe_path <<- rswat_validate_fpath(p,'.exe', 'exe_path'),
     check_exe_path = function(p=exe_path) invisible(rswat_validate_fpath(p,'.exe', 'exe_path')),
 
+    # variable info getter with options for subsets
+    get_line_df = function(what=NULL, f=NULL, check_dir=TRUE, drop=FALSE) {
+
+      # error when swat directory not assigned unless otherwise requested
+      if( check_dir & is.na(swat_dir) ) stop('project directory must be assigned first')
+
+      # by default returns all info
+      if( is.null(f) ) f = line_df[['file']]
+      if( is.null(what) ) what = names(line_df)
+      return( line_df[line_df[['file']] %in% f, names(line_df) %in% what, drop=drop] )
+    },
+
     # file info getter with options for subsets
-    get_cio_df = function(what=NULL, f=NULL, check_dir=TRUE) {
+    get_cio_df = function(what=NULL, f=NULL, check_dir=TRUE, drop=FALSE) {
 
       # error when swat directory not assigned unless otherwise requested
       if( check_dir & is.na(swat_dir) ) stop('project directory must be assigned first')
@@ -122,7 +134,7 @@ rswat_db = setRefClass('rswat_db',
       # by default returns all info
       if( is.null(f) ) f = cio_df[['file']]
       if( is.null(what) ) what = names(cio_df)
-      return( cio_df[cio_df[['file']] %in% f, names(cio_df) %in% what] )
+      return( cio_df[cio_df[['file']] %in% f, names(cio_df) %in% what, drop=drop] )
     },
 
     # SWAT+ data frames getter
@@ -142,8 +154,9 @@ rswat_db = setRefClass('rswat_db',
     # get list of loaded files
     get_loaded_files = function(check_dir=TRUE) {
 
-      is_loaded = get_cio_df(what='loaded', check_dir=check_dir)
-      return( get_cio_df(what='file', check_dir=check_dir)[ is_loaded ] )
+      # drop=TRUE returns as vector instead of data frame
+      is_loaded = get_cio_df(what='loaded', check_dir=check_dir, drop=TRUE)
+      return( get_cio_df(what='file', check_dir=check_dir, drop=TRUE)[ is_loaded ] )
     },
 
     # check if a file has been loaded yet
@@ -161,8 +174,8 @@ rswat_db = setRefClass('rswat_db',
       if(!is_file_loaded('file.cio')) return('')
 
       # build a message about files loaded
-      n_known = sum( get_cio_df(what='known') )
-      n_group = length( unique( get_cio_df(what='group') ) )
+      n_known = sum( get_cio_df(what='known', drop=TRUE) )
+      n_group = length( unique( get_cio_df(what='group', drop=TRUE) ) )
       paste0(n_known, ' config files in ', n_group, ' groups')
     },
 
