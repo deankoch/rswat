@@ -27,7 +27,7 @@ rswat_docs(
 
 \item{desc_len}{integer, maximum number description text characters to return (per variable)}
 
-\item{pdf_df}{temporary, fix this}
+\item{.db}{rswat_db object, for internal use}
 }
 \value{
 data frame containing search results and their location in the PDF

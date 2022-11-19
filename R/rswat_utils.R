@@ -49,6 +49,66 @@ rswat_validate_fpath = function(p, extension=NA, p_name='p') {
 }
 
 
+#' Render table data to the specified character width for printing
+#'
+#'
+#'
+#' @param txt character vector, or a list of them (eg a data frame)
+#' @param max_len integer, the maximum width allowed for printing (`NULL` to set automatically)
+#' @param NA_char character, string to print in place of `NA`s
+#' @param more_char character, string to indicate that a field has been shortened
+#'
+#' @return character vector or data frame (the same length as `txt`)
+#' @export
+rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', just='left')
+{
+  # widths of annotation strings
+  n_NA = nchar(NA_char)
+  n_more = nchar(more_char)
+
+  # handle data frames
+  if( is.data.frame(txt) )
+  {
+    # set default max_len based on R option (only tested on base windows GUI)
+    if( is.null(max_len) ) max_len = unlist(options('width'))
+
+    # measure width of print method output without last column
+    idx_last = length(txt)
+    len_first = utils::capture.output(print(txt[-idx_last])) |> nchar() |> max()
+
+    # replace NA with character in all but last column
+    txt[-idx_last] = replace(txt[-idx_last], is.na(txt[-idx_last]), NA_char)
+
+    # set the max width for the last column, truncate, return everything
+    max_len_last = max_len - len_first - 2L
+    if(max_len_last < NA_char) stop('max_len too low. Try removing some columns')
+    txt[[idx_last]] = rswat_truncate_txt(txt[[idx_last]], max_len_last, NA_char, more_char)
+    return(txt)
+  }
+
+  # clean up input text and set default max_len to longest string length
+  txt = gsub('\\s+', ' ', replace(txt, is.na(txt), NA_char), perl=TRUE) |> trimws()
+  if( is.null(max_len) ) max_len = nchar(txt) |> max()
+
+  # make sure the truncation symbol is not too long
+  max_len_short = max_len - n_more
+  if( max_len_short < 0 ) stop('max_len cannot be less than the width of more_char')
+
+  # truncate then overwrite last n_more characters of truncated strings with more_char
+  txt_short = substr(txt, 1L, max_len) |> trimws()
+  is_short = nchar(txt_short) < nchar(txt)
+  txt_short[is_short] = txt[is_short] |>
+    substr(1L, max_len_short) |>
+    trimws() |>
+    paste0(more_char)
+
+  # pad to max_len using white-space
+  n_pad = pmax(0, max_len - nchar(txt_short))
+  txt_pad = sapply(n_pad, \(n) paste(rep(' ', n), collapse=''))
+  if( just == 'left' ) return( paste0(txt_short, txt_pad) )
+  return( paste0(txt_pad, txt_short) )
+}
+
 #' Convert between two representations of date
 #'
 #' If `d` is a Date vector, the function returns a data frame with the same number of rows,
@@ -342,7 +402,25 @@ rswat_amatch = function(m)
   return(out_vec)
 }
 
-# both dfs must have 'name' columns
+#' Match names to aliases, merging other fields
+#'
+#' This uses rswat_amatch to match SWAT+ names to aliases in the PDF, then
+#' merges the two data frames. It uses a greedy algorithm for assignment that
+#' favors match patterns that are (nearly) in sequence
+#'
+#' Matching is done against the 'name' columns of both inputs
+#'
+#' @param name_df  input config file data
+#' @param alias_df docs data
+#' @param skip omit from search
+#' @param alias_desc s
+#' @param name_split s
+#' @param alias_split  s
+#' @param div_penalty internal
+#' @param k_select diagonals
+#'
+#' @return a
+#' @export
 rswat_fuzzy_match = function(name_df,
                              alias_df,
                              skip = TRUE,
@@ -352,14 +430,11 @@ rswat_fuzzy_match = function(name_df,
                              div_penalty = 1,
                              k_select = NULL)
 {
-
-
-  # TODO: toggle skip
   # TODO: toggle symmetric, add lu_split etc
 
   # flags to include an item in searching
-  is_name_used = !name_df[['skip']]
-  is_alias_used = !alias_df[['skip']]
+  is_name_used = if(skip) !name_df[['skip']] else rep(TRUE, nrow(name_df))
+  is_alias_used = if(skip) !alias_df[['skip']] else rep(TRUE, nrow(name_df))
 
   # TODO: basic checks
   if( !any(is_name_used) | !any(is_alias_used) ) return(name_df)
@@ -387,8 +462,7 @@ rswat_fuzzy_match = function(name_df,
                                 pattern_split = alias_split))
 
   # penalty for divergence from input order
-  if(is.null(k_select)) k_select = min(diff(dim(d_mat_t)-2L), 0):max(1L + diff(dim(d_mat_t)), 0)
-  k_select = min(diff(dim(d_mat_t)), 0):max(diff(dim(d_mat_t)), 0)
+  if( is.null(k_select) ) k_select = min(diff(dim(d_mat_t)), 0):max(diff(dim(d_mat_t)), 0)
   pen_mat = Reduce('|', lapply(k_select, \(k) col(d_mat_t) - row(d_mat_t) == k ))
   pen_mat = div_penalty * !pen_mat
 
@@ -420,161 +494,3 @@ rswat_fuzzy_match = function(name_df,
 }
 
 
-
-rswat_truncate_txt = function(txt, max_len=NULL, NA_char='NA', pad_char=' ', more_char='...')
-{
-  # handle data frame input
-  if( is.data.frame(txt) ) return( data.frame(
-
-    # loop over input columns
-    lapply(txt, \(txt_column) {
-
-      rswat_truncate_txt(txt_column,
-                         max_len = max_len,
-                         NA_char = NA_char,
-                         pad_char = pad_char,
-                         more_char = more_char)
-    })
-  ))
-
-  # lengths of input strings (default max_len is input max length)
-  n_src = nchar(txt, keepNA=FALSE)
-  if( is.null(max_len) ) max_len = max(n_src)
-
-  # create a truncated version of character string and convert NAs to empty strings
-  txt_short = substr(gsub('\\s{2,}', pad_char, txt, perl=TRUE), 1L, max_len)
-  txt_short[ is.na(txt_short) ] = NA_char
-  n_short = nchar(txt_short)
-
-  # vector of padding to add
-  txt_pad = sapply(max_len - n_short, \(n) paste(rep(pad_char, n), collapse=''))
-
-  # suffix indicating when a string has been truncated
-  empty_char = paste(rep(pad_char, nchar(more_char)), collapse='')
-  txt_suffix = ifelse(n_src > n_short, more_char, empty_char)
-  return( paste0(txt_short, txt_pad, txt_suffix) )
-}
-
-
-
-
-
-#' Fuzzy text search based on rswat_string_dist
-#'
-#' This calls `rswat_string_dist` (with default `costs`) to score how closely
-#' `pattern` matches with elements of `lu`, then sorts `lu` (best matching first), and
-#' returns a subset. To return more results, increase `fuzzy`.
-#'
-#' For exact matches only, set `fuzzy=-1`. To also get results where `pattern` matches
-#' sub-strings of `lu` exactly, set `fuzzy=0`. To get all of the above, plus the first
-#' `fuzzy` approximate matches, set `fuzzy` to a positive integer.
-#'
-#' Fuzzy matching is based on Levenstein distance and relative string lengths. See
-#' `?rswat_string_dist` for documentation on the scoring function and `lu_split`.
-#'
-#' The function returns results in a data frame, with 'order' indexing the input
-#' `lu` sorted by least distance, 'distance' indicating the match strength (lower is
-#' better), and 'name' indicating the string that was matched in `lu`.
-#'
-#' `lu` can also list of equal-length character vectors, in which case the function
-#' is called on each vector separately with `fuzzy=Inf`
-#'
-#' @param pattern character vector, the keyword to search for
-#' @param lu character vector, the strings to match against
-#' @param fuzzy integer, controlling the number of results returned (see details)
-#' @param lu_split logical, whether to split `lu` (see `?rswat_string_dist`)
-#'
-#' @return data frame with columns 'order', 'distance', and 'name'
-#' @export
-#'
-#' @examples
-#' # grab some text strings (table headers)
-#' lu = .rswat_gv_cio_show()
-#' lu
-#'
-#' # compute distances. zero indicates exact match, higher indicates approximate match
-#' rswat_fuzzy_search('n_var', lu)
-#'
-#' # search term can be a substring
-#' rswat_fuzzy_search('var', lu)
-#'
-#' # some ties resolved by ordering according to string length similarity
-#' rswat_fuzzy_search('n', lu)
-#'
-#' # repeat with punctuation splitting turned on to more closely match the 'n' prefix
-#' rswat_fuzzy_search(pattern='n', lu, lu_split=TRUE)
-#'
-#' # fuzzing can help with typos
-#' rswat_fuzzy_search('n_bar', lu)
-#' rswat_fuzzy_search('nvar', lu)
-#'
-#' # false positives can happen due to length comparison
-#' rswat_fuzzy_search('num_variables', lu)
-#'
-#' # increase fuzzy to get more results
-#' rswat_fuzzy_search('num_variables', lu, fuzzy=3)
-#' rswat_fuzzy_search('num_variables', lu, fuzzy=5)
-#'
-rswat_fuzzy_search = function(pattern,
-                              lu,
-                              fuzzy = 5L,
-                              lu_split = FALSE,
-                              pattern_split = FALSE,
-                              quiet = FALSE)
-{
-  # multiple pattern results returned in a list
-  if( length(pattern) > 1 )
-  {
-    return( lapply(pattern, \(p) rswat_fuzzy_search(pattern = p,
-                                                    lu = lu,
-                                                    fuzzy = fuzzy,
-                                                    lu_split = lu_split,
-                                                    pattern_split = pattern_split,
-                                                    quiet = TRUE)))
-  }
-
-  # find string distances for single string pattern and character vector lu
-  dist_result = rswat_string_dist(pattern = pattern,
-                                  lu = lu,
-                                  lu_split = lu_split,
-                                  pattern_split = pattern_split)
-
-  # initialize results vector to exact matches only
-  is_exact = dist_result == 0
-  idx_result = NULL
-  if( any(is_exact) ) idx_result = which(is_exact)
-
-  # add sub-string matches on request
-  if( !(fuzzy < 0) )
-  {
-    # exclude exact matches and sort results, then add to results stack
-    is_sub = !is_exact & (dist_result < 1)
-    if( any(is_sub) ) idx_result = c(idx_result, which(is_sub)[ order( dist_result[is_sub] ) ])
-
-    # approximate search mode
-    if( fuzzy > 0 )
-    {
-      # append approximate results from 1 to `fuzzy`
-      is_approx = !is_exact & !is_sub
-      if( any(is_approx) )
-      {
-        # truncate if there aren't enough results
-        fuzzy = min(fuzzy, sum(is_approx))
-        add_approx = which(is_approx)[order(dist_result[is_approx])[seq(fuzzy)]]
-        idx_result = c(idx_result, add_approx)
-      }
-    }
-  }
-
-  # count results
-  dist_result = dist_result[idx_result]
-  n_results = length(idx_result)
-  if(n_results == 0)
-  {
-    if(!quiet) message('no results found. Try increasing fuzzy or loading more files')
-    return(invisible(data.frame(order=integer(0), distance=numeric(0), name=character(0))))
-  }
-
-  # extract all available info on matches, append distance scores
-  return(data.frame(order=idx_result, distance=dist_result, name=lu[idx_result]))
-}

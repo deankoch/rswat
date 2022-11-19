@@ -22,13 +22,15 @@ rswat_show_search(
 
 \item{nm_print}{character vector, usually a subset of \code{names(results)} (see details)}
 
+\item{quiet}{logical, supresses console output}
+
 \item{.db}{rswat_db object, for internal use}
 }
 \value{
 Returns (invisibly) the subset of \code{results} specified by \code{nm_print}
 }
 \description{
-Helper function for \code{rswat_find} and \code{rswat_docs}. This prints search results to the
+Helper function for \code{rswat_find}. This prints search results to the
 console, dividing the results into 1-3 categories (exact, sub-string, or approximate.)
 depending on \code{fuzzy}. Categories are based on the match strength scores in column
 'distance' (lower is better, see \code{?rswat_fuzzy_search}).

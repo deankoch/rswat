@@ -8,6 +8,7 @@ rswat_find(
   pattern = "*",
   f = NULL,
   fuzzy = 0L,
+  docs = TRUE,
   trim = 3L,
   n_max = 10L,
   quiet = FALSE,
@@ -20,6 +21,8 @@ rswat_find(
 \item{f}{character vector, file (or file group) names to include in search}
 
 \item{fuzzy}{numeric, specifying tolerance for approximate matches (see details)}
+
+\item{docs}{logical, appends 'match', 'alias', and 'desc' fields to results}
 
 \item{trim}{integer between 1-5, higher means more simplification in printed result}
 

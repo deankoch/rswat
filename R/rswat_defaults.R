@@ -49,6 +49,14 @@
                                   'n_var',
                                   'size')
 
+.rswat_gv_match_docs_trim = function(trim) switch(trim,
+
+  '5' = c('id_alias', 'match', 'distance', 'name', 'alias', 'desc'),
+  '4' = c('match', 'distance', 'name', 'alias', 'desc'),
+  '3' = c('match', 'name', 'alias', 'desc'),
+  '2' = c('name', 'alias', 'desc'),
+  '1' = c('name','alias'),
+)
 
 # attributes to display search results with trim
 .rswat_gv_find_trim = function(trim) switch(trim,
@@ -58,6 +66,7 @@
   '3' = c('name', 'file', 'group'),
   '2' = c('name', 'file'),
   '1' = c('name')
+
 )
 
 # simulation time step size codes (docs unclear on sub-hourly case, so it is not supported)
