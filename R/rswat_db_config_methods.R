@@ -13,19 +13,21 @@ rswat_db$methods( list(
     # read file.cio and refresh files list
     parse_file_cio(refresh=TRUE, quiet=quiet)
 
-    # make a default list of files to open
-    if( is.null(f) ) f = cio_df |> dplyr::filter(!is.na(group)) |> pull(file)
-    msg_unknown = paste(f, collapse=', ')
+    # # make a default list of files to open
+    # if( is.null(f) ) f = cio_df |> dplyr::filter(!is.na(group)) |> pull(file)
+    # msg_unknown = paste(f, collapse=', ')
 
-    # exclude ineligible files
-    f = cio_df |> dplyr::filter(exists) |>
-      dplyr::filter( !is.na(type) ) |>
-      dplyr::filter( type != 'log' ) |>
-      dplyr::filter( file %in% f ) |>
-      dplyr::filter( !(file %in% ignore) ) |>
-      dplyr::filter( !(type %in% ignore) ) |>
-      dplyr::filter( !(group %in% ignore) ) |>
-      dplyr::pull(file)
+    if( !any(get_cio_df(what='exists', f=f)) ) stop('file(s) not found')
+
+    # # exclude ineligible files
+    # f = cio_df |> dplyr::filter(exists) |>
+    #   dplyr::filter( !is.na(type) ) |>
+    #   dplyr::filter( type != 'log' ) |>
+    #   dplyr::filter( file %in% f ) |>
+    #   dplyr::filter( !(file %in% ignore) ) |>
+    #   dplyr::filter( !(type %in% ignore) ) |>
+    #   dplyr::filter( !(group %in% ignore) ) |>
+    #   dplyr::pull(file)
 
     # skip if there were no eligible files
     n_files = length(f)
@@ -251,8 +253,8 @@ rswat_db$methods( list(
       if(!quiet) paste(sum(is_unknown), missing_msg, files_msg, '\n') |> cat()
 
       # append the missing files to directory listing but flag as non-existent
-      cio_df <<- data.frame(file=unknown_files, known=FALSE, exists=FALSE, loaded=FALSE) |>
-        dplyr::full_join(cio_df, by=c('file', 'known', 'exists', 'loaded'))
+      cio_df <<- data.frame(file=unknown_files, exists=FALSE, loaded=FALSE) |>
+        dplyr::full_join(cio_df, by=c('file', 'exists', 'loaded'))
     }
 
     # write group names to known files in directory listing
@@ -264,8 +266,8 @@ rswat_db$methods( list(
     is_cio = cio_df[['file']] == 'file.cio'
     cio_df[['group']][ is_cio ] <<- 'cio'
     cio_df[['loaded']][ is_cio ] <<- TRUE
-    cio_df[['known']][ is_listed | is_cio ] <<- TRUE
     cio_df[['type']][ is_listed | is_cio ] <<- 'config'
+    #cio_df[['known']] <<- !is.na(cio_df[['type']])
 
     # TODO: deal with weather data files
     # assign weather groups

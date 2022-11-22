@@ -173,10 +173,14 @@ rswat_db = setRefClass('rswat_db',
       # returns empty string when file.cio hasn't been loaded
       if(!is_file_loaded('file.cio')) return('')
 
+      # find config files and group
+      is_config = get_cio_df(what='type', drop=TRUE) == 'config'
+      is_config[ is.na(is_config) ] = FALSE
+      n_config = sum(is_config)
+      n_group = length( unique( get_cio_df(what='group', drop=TRUE)[is_config] ) )
+
       # build a message about files loaded
-      n_known = sum( get_cio_df(what='known', drop=TRUE) )
-      n_group = length( unique( get_cio_df(what='group', drop=TRUE) ) )
-      paste0(n_known, ' config files in ', n_group, ' groups')
+      paste0(n_config, ' config files in ', n_group, ' groups')
     },
 
     # console printout
@@ -192,9 +196,9 @@ rswat_db = setRefClass('rswat_db',
       if(is_file_cio_loaded)
       {
         # build a message about files loaded
-        n_known = sum( get_cio_df(what='known') )
+        n_known = sum(get_cio_df(what='type', drop=TRUE) == 'config', na.rm=TRUE)
         n_group = length( unique( get_cio_df(what='group') ) )
-        config_files_msg = paste0(report_known_files(), '\n')
+        config_files_msg = paste0('reports ', report_known_files(), '\n')
 
         # build a message about simulation dates
         dates_msg = NULL

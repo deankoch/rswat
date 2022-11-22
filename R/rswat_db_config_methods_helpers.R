@@ -42,7 +42,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   cio_new = data.frame(file=list.files(swat_dir)) |>
     dplyr::mutate( known = FALSE ) |>
     dplyr::mutate( loaded = FALSE ) |>
-    dplyr::mutate( type = 'unknown' ) |>
+    dplyr::mutate( type = NA_character_ ) |>
     dplyr::mutate( path = file.path(swat_dir, file) ) |>
     dplyr::anti_join( cio_df, by=c('file') ) |>
     dplyr::full_join( cio_df, by=c('file', 'known', 'loaded', 'type', 'path') ) |>
@@ -57,8 +57,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   type_lu = .rswat_gv_type_lu()
   type_match = lapply(type_lu[['pattern']], \(s) which(grepl(s, cio_new[['file']])) )
   for( j in seq(nrow(type_lu)) ) cio_new[['type']][ type_match[[j]] ] = type_lu[['type']][j]
-  cio_new[['type']][ is.na(cio_new[['type']]) ] = 'unknown'
-  cio_new[['known']] = cio_new[['type']] != 'unknown'
+  cio_new[['known']] = !is.na(cio_new[['type']])
   return(cio_new)
 }
 
