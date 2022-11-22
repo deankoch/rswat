@@ -16,7 +16,7 @@
 #' can be large and slow to parse. Set `exclude=""` to load everything.
 #'
 #' @param swat_dir character, path to the SWAT+ project directory (should contain "file.cio")
-#' @param exe_dir character, path to the SWAT+ simulation executable (should have extension ".exe")
+#' @param exe_path character, path to the SWAT+ simulation executable (should have extension ".exe")
 #' @param load_all logical, indicating to load all configuration files except as specified in `exclude`
 #' @param exclude character vector, regular expressions for groups/names to not load
 #' @param reset logical, indicates to re-initialize rswat (erases any loaded data)
@@ -26,11 +26,11 @@
 #' @export
 #'
 rswat = function(swat_dir = NULL,
-                 exe_dir = NULL,
-                 load_all = FALSE,
-                 exclude = .rswat_gv_exclude(),
+                 exe_path = NULL,
                  reset = FALSE,
-                 n_max = 10,
+                 include = 'config',
+                 exclude = .rswat_gv_exclude(),
+                 n_max = 5L,
                  quiet = FALSE,
                  .db = .rswat_db)
 {
@@ -50,15 +50,32 @@ rswat = function(swat_dir = NULL,
   # scan for files
   .db$refresh_cio_df()
 
-  # read file.cio to add type and group labels
+  # read file.cio to add type and group labels then refresh again
   rswat_open(f='file.cio', quiet=TRUE, .db=.db)
+  .db$refresh_cio_df()
 
   # load other files on request
-  f_df = rswat_files(what=c('file', 'group'), include='cio', .db=.db)
-  is_available = !( ( f_df[['file']] %in% exclude ) | (f_df[['group']] %in% exclude) )
-  if(load_all)
+  if( !is.null(include) )
   {
-    # load them or else warn if there aren't any left after exclusions
+    # include has precedence over exclude in conflicts
+    is_conflicted = exclude %in% include
+    if( any(is_conflicted) ) exclude = exclude[!is_conflicted]
+
+    # get a data frame of available files
+    f_df = rswat_files(loaded = NA,
+                       known = TRUE,
+                       what = c('file', 'group', 'type', 'exists'),
+                       n_max = NA,
+                       refresh = FALSE,
+                       quiet = TRUE,
+                       .db = .db)
+
+    # identify rows to include
+    is_excluded = apply(f_df, 1L, \(x) any(x %in% exclude) )
+    is_included = apply(f_df, 1L, \(x) any(x %in% include) )
+    is_available = is_included & !is_excluded & f_df[['exists']]
+
+    # load included files or else warn if there aren't any left after exclusions
     if( !any(is_available))  { warning('no additional files loaded') } else {
 
       rswat_open(f_df[['file']][is_available])
@@ -67,32 +84,108 @@ rswat = function(swat_dir = NULL,
 
   # run check to print info then fetch a copy of files list
   rswat_check(quiet=quiet, .db=.db)
-  cio_out = rswat_files(refresh=FALSE, include='loaded', .db=.db) |> dplyr::select(-loaded)
+  cio_out = rswat_files(known=TRUE, refresh=FALSE, quiet=quiet, n_max=n_max, .db=.db)
 
   # return nothing if no directory is assigned
   if(nrow(cio_out) == 0) return(invisible())
 
-  # console print-out of first `n_max` rows of return data frame
-  if(!quiet)
-  {
-    # count rows and check if we need to trim
-    n_cio = nrow(cio_out)
-    n_print = pmin(n_cio, n_max)
-    is_cropped = n_print < n_cio
-
-    # report on trimmed rows
-    msg_shown = ifelse(is_cropped, paste0('(displaying the first ',  n_print, ')'), '')
-    message( paste(n_cio, 'file(s) loaded', msg_shown, '\n') )
-
-    # print the data frame
-    print(head(cio_out, n_print), quote=FALSE)
-    cat(paste0(ifelse(is_cropped, '...\n', ''), '\n'))
-    if(is_cropped) message('show all files with rswat_files()')
-  }
-
   # return full data frame invisibly
   return(invisible(cio_out))
 }
+
+
+#' Return a data frame of information about SWAT+ files
+#'
+#' TODO: details here
+#'
+#' `f` filters rows by specifying file name(s) (default `NULL` selects all),
+#'
+#' @param what character vector, the column(s) to select
+#' @param f character vector, the file name(s) to select
+#' @param type character, one of 'config' (the default)...
+#' @param include character, one of 'loaded', 'cio', 'known', 'all'
+#' @param refresh logical, indicates to re-scan the directory
+#' @param .db rswat_db object, for internal use
+#'
+#' @return the requested data frame or vector, a subset of `cio`
+#' @export
+
+rswat_files = function(pattern = NA,
+                       type = NA,
+                       loaded = NA,
+                       known = TRUE,
+                       what = .rswat_gv_cio_show(),
+                       quiet = FALSE,
+                       n_max = 15,
+                       refresh = TRUE,
+                       .db = .rswat_db)
+{
+  # refresh files list
+  if(refresh) rswat(swat_dir=.db$get_swat_dir(), include=NULL, quiet=TRUE, .db=.db)
+
+  # copy requested subset of files data frame
+  files_df = .db$get_cio_df()
+
+  # build an index of results to exclude
+  is_omitted = logical( nrow(files_df) )
+  if( !is.na(loaded) ) is_omitted = is_omitted | ( files_df[['loaded']] != loaded )
+  if( !is.na(known) ) is_omitted = is_omitted | ( files_df[['known']] != known )
+  if( !is.na(pattern) )
+  {
+    is_match = apply(files_df[c('group', 'type')], 1L, \(x) any(x == pattern))
+    is_omitted = is_omitted | !is_match
+  }
+
+  # handle files with NA group or type
+  is_omitted[ is.na(is_omitted) ] = TRUE
+
+  # all included results are returned invisibly
+  files_df = files_df[!is_omitted, what, drop=FALSE]
+  row.names(files_df) = NULL
+
+  # console print-out of first `n_max` rows of return data frame
+  if(!quiet)
+  {
+    # same as no limit
+    if(is.na(n_max)) n_max = Inf
+
+    # count rows and check if we need to clip console printout
+    n_included = sum(!is_omitted)
+    n_show = min(n_max, n_included)
+    is_clipped = n_show < n_included
+    if( n_included == 0 ) { message('no results') } else {
+
+      # modifiers for message (gsub and outer paste convert NA to '')
+      msg_known = gsub('NA', '', paste( paste0(c(' un', ' '), 'known')[1L + known]))
+      msg_load = gsub('NA', '', paste( paste(c(' not', ''), 'currently loaded')[1L + loaded]))
+      msg_pattern = ifelse(is.na(pattern), '', paste0(' ', pattern))
+
+      # report on trimmed rows
+      msg_report = paste0(n_included, msg_known, msg_pattern, ' file(s)', msg_load)
+      message(msg_report)
+      if(is_clipped) message(paste('showing the first',  n_show))
+
+      # print messages, then the data frame
+      cat('\n')
+      print(head(files_df, n_show), quote=FALSE)
+      if(is_clipped)
+      {
+        cat('...\n')
+        n_omit = n_included - n_show
+        msg_omit = paste(n_omit, 'result(s) not shown. Increase n_max to see more')
+        if( n_omit > 0 ) message(msg_omit)
+      }
+    }
+  }
+
+  # returns empty data frame if nothing was found
+  return( invisible(files_df) )
+}
+
+
+
+
+
 
 #' Open a SWAT+ project file with rswat
 #'
@@ -114,7 +207,13 @@ rswat_open = function(f=NULL, quiet=FALSE, .db=.rswat_db)
   if( is.null(f) )
   {
     # load the valid file name choices
-    f_available = rswat_files(what=c('file', 'loaded'), include='known', .db=.db)
+    f_available = rswat_files(known = TRUE,
+                              what = c('file', 'loaded'),
+                              n_max = NA,
+                              refresh = FALSE,
+                              .db = .db)
+
+    # print choices
     if(!quiet)
     {
       # print a message about loaded and not-loaded files
@@ -135,13 +234,16 @@ rswat_open = function(f=NULL, quiet=FALSE, .db=.rswat_db)
     return(invisible(f_available))
   }
 
+  # handle data frame input
+  if(is.data.frame(f)) f = f[['file']]
+
   # recursive call to open multiple files in a loop and return results in list
   if( length(f) > 1 )
   {
     # attempt open the files then check for success
     .db$open_config_batch(f, quiet=quiet)
     is_loaded = .db$is_file_loaded(f)
-    if( any(!is_loaded) ) warning('files ', paste(paste(f[!is_loaded], collapse=', ')), 'not found')
+    if( any(!is_loaded) ) warning('files ', paste(paste(f[!is_loaded], collapse=', ')), ' not found')
 
     # return everything that was successfully loaded, collapsing length-1 lists
     list_out = .db$get_stor_df(f[is_loaded])
@@ -159,53 +261,17 @@ rswat_open = function(f=NULL, quiet=FALSE, .db=.rswat_db)
   return(list_out)
 }
 
-#' Return a data frame of information about SWAT+ files
-#'
-#' TODO: details here
-#'
-#' `f` filters rows by specifying file name(s) (default `NULL` selects all),
-#'
-#' @param what character vector, the column(s) to select
-#' @param f character vector, the file name(s) to select
-#' @param type character, one of 'config' (the default)...
-#' @param include character, one of 'loaded', 'cio', 'known', 'all'
-#' @param refresh logical, indicates to re-scan the directory
-#' @param .db rswat_db object, for internal use
-#'
-#' @return the requested data frame or vector, a subset of `cio`
-#' @export
-
-rswat_files = function(f=NULL,
-                       what=.rswat_gv_cio_show(),
-                       type='config',
-                       include='known',
-                       refresh=FALSE,
-                       .db=.rswat_db)
-{
-  # NULL what indicates to select all
-  if(is.null(what)) what = names(rswat_scan_dir())
-
-  # check that the package was loaded properly
-  rswat_check(quiet=TRUE, .db=.db)
-
-  # refresh files list then
-  if(refresh) rswat(refresh=TRUE, quiet=TRUE, .db=.db)
-
-  # find requested subset and return empty data frame if nothing was found
-  cio_out = .db$get_cio_df(f=f)
-  if(include=='loaded') cio_out = subset(cio_out, loaded==TRUE)
-  if(include=='known') cio_out = subset(cio_out, known==TRUE)
-  if(include=='cio') cio_out = subset(cio_out, !is.na(group))
-  if(nrow(cio_out) == 0) return(cio_out)
-  cio_out = subset(cio_out[, what], type==type)
-  return( cio_out )
-}
-
 
 
 
 
 #' Get or set the SWAT+ simulation time parameters
+#'
+#' #' WORK IN PROGRESS
+#' TODO: add options for toggling different output files
+#' TODO: add write functionality
+#' TODO: incorporate warm-up period
+#' TODO: validate time intervals
 #'
 #' Helper function for reading or setting up parameters SWAT+ parameters
 #' controlling the time steps executed by the simulator, as well as the
@@ -218,12 +284,6 @@ rswat_files = function(f=NULL,
 #'
 #' Currently the function just reports the existing dates, along with a
 #' text string indicating the simulation time step.
-#'
-#' #' WORK IN PROGRESS
-#' TODO: add options for toggling different output files
-#' TODO: add write functionality
-#' TODO: incorporate warm-up period
-#' TODO: validate time intervals
 #'
 #' @param sim vector of start/end dates for the simulation (or NULL)
 #' @param prt vector of start/end dates for the printed output (or NULL)

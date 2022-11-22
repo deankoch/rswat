@@ -13,7 +13,7 @@ rswat_truncate_txt(
 )
 }
 \arguments{
-\item{txt}{character vector, or a list of them (eg a data frame)}
+\item{txt}{character vector, or a data frame}
 
 \item{max_len}{integer, the maximum width allowed for printing (\code{NULL} to set automatically)}
 

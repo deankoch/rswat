@@ -21,11 +21,17 @@ rswat_time(sim = NULL, prt = NULL, step = NULL, step_prt = 1L, .db = .rswat_db)
 a list containing the currently assigned date ranges and step size
 }
 \description{
+#' WORK IN PROGRESS
+TODO: add options for toggling different output files
+TODO: add write functionality
+TODO: incorporate warm-up period
+TODO: validate time intervals
+}
+\details{
 Helper function for reading or setting up parameters SWAT+ parameters
 controlling the time steps executed by the simulator, as well as the
 requested time steps (and variables) to print to output files.
-}
-\details{
+
 These parameters are located in two files:
 \itemize{
 \item "time.sim" controls the simulation start date, end date, and step size
@@ -34,10 +40,4 @@ These parameters are located in two files:
 
 Currently the function just reports the existing dates, along with a
 text string indicating the simulation time step.
-
-#' WORK IN PROGRESS
-TODO: add options for toggling different output files
-TODO: add write functionality
-TODO: incorporate warm-up period
-TODO: validate time intervals
 }

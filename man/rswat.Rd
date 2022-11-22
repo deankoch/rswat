@@ -6,11 +6,11 @@
 \usage{
 rswat(
   swat_dir = NULL,
-  exe_dir = NULL,
-  load_all = FALSE,
-  exclude = .rswat_gv_exclude(),
+  exe_path = NULL,
   reset = FALSE,
-  n_max = 10,
+  include = "config",
+  exclude = .rswat_gv_exclude(),
+  n_max = 5L,
   quiet = FALSE,
   .db = .rswat_db
 )
@@ -18,15 +18,15 @@ rswat(
 \arguments{
 \item{swat_dir}{character, path to the SWAT+ project directory (should contain "file.cio")}
 
-\item{exe_dir}{character, path to the SWAT+ simulation executable (should have extension ".exe")}
-
-\item{load_all}{logical, indicating to load all configuration files except as specified in \code{exclude}}
-
-\item{exclude}{character vector, regular expressions for groups/names to not load}
+\item{exe_path}{character, path to the SWAT+ simulation executable (should have extension ".exe")}
 
 \item{reset}{logical, indicates to re-initialize rswat (erases any loaded data)}
 
+\item{exclude}{character vector, regular expressions for groups/names to not load}
+
 \item{.db}{rswat_db object, for internal use}
+
+\item{load_all}{logical, indicating to load all configuration files except as specified in \code{exclude}}
 }
 \value{
 A data frame of information on the SWAT+ files in \code{swat_dir}

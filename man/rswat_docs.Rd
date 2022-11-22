@@ -4,20 +4,14 @@
 \alias{rswat_docs}
 \title{Search variable names and description text in the SWAT+ I/O PDF}
 \usage{
-rswat_docs(
-  pattern = NULL,
-  f = NULL,
-  fuzzy = 1,
-  intro = FALSE,
-  descriptions = FALSE,
-  desc_len = 50L,
-  .db = .rswat_db
-)
+rswat_docs(name = NULL, f = NULL, quiet = FALSE, .db = .rswat_db)
 }
 \arguments{
-\item{pattern}{character vector, the search keyword string}
-
 \item{f}{character vector, the file names (sections of document) to include in search}
+
+\item{.db}{rswat_db object, for internal use}
+
+\item{pattern}{character vector, the search keyword string}
 
 \item{fuzzy}{integer, controlling the number of results returned (see details)}
 
@@ -26,8 +20,6 @@ rswat_docs(
 \item{descriptions}{logical, if TRUE, searches description text instead of variable names}
 
 \item{desc_len}{integer, maximum number description text characters to return (per variable)}
-
-\item{.db}{rswat_db object, for internal use}
 }
 \value{
 data frame containing search results and their location in the PDF

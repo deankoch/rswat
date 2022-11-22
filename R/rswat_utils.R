@@ -53,7 +53,7 @@ rswat_validate_fpath = function(p, extension=NA, p_name='p') {
 #'
 #'
 #'
-#' @param txt character vector, or a list of them (eg a data frame)
+#' @param txt character vector, or a data frame
 #' @param max_len integer, the maximum width allowed for printing (`NULL` to set automatically)
 #' @param NA_char character, string to print in place of `NA`s
 #' @param more_char character, string to indicate that a field has been shortened
@@ -62,39 +62,62 @@ rswat_validate_fpath = function(p, extension=NA, p_name='p') {
 #' @export
 rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', just='left')
 {
-  # widths of annotation strings
-  n_NA = nchar(NA_char)
-  n_more = nchar(more_char)
-
   # handle data frames
   if( is.data.frame(txt) )
   {
     # set default max_len based on R option (only tested on base windows GUI)
     if( is.null(max_len) ) max_len = unlist(options('width'))
+    if( ncol(txt) == 1L )
+    {
+      # data.frame with one column is coerced to character
+      return( rswat_truncate_txt(txt[[1L]], max_len, NA_char, more_char, just) )
 
-    # measure width of print method output without last column
-    idx_last = length(txt)
-    len_first = utils::capture.output(print(txt[-idx_last])) |> nchar() |> max()
+    } else {
 
-    # replace NA with character in all but last column
-    txt[-idx_last] = replace(txt[-idx_last], is.na(txt[-idx_last]), NA_char)
+      # check for names
+      idx_last = length(txt)
+      if( is.null(names(txt)[idx_last]) ) stop('last column of txt must be named')
+      n_last_name = nchar( names(txt)[idx_last] )
 
-    # set the max width for the last column, truncate, return everything
-    max_len_last = max_len - len_first - 2L
-    if(max_len_last < NA_char) stop('max_len too low. Try removing some columns')
-    txt[[idx_last]] = rswat_truncate_txt(txt[[idx_last]], max_len_last, NA_char, more_char)
-    return(txt)
+      # replace NA with character and add padding to all but last column
+      txt[-idx_last] = replace(txt[-idx_last], is.na(txt[-idx_last]), NA_char)
+      txt[, -idx_last] = apply(txt[, -idx_last, drop=FALSE], 2L, \(x) {
+
+        # columns padded to common length
+        rswat_truncate_txt(x,
+                           max_len = NULL,
+                           NA_char = NA_char,
+                           more_char = more_char,
+                           just = just)
+      })
+
+      # measure width of print method output without last column
+      txt_printed = utils::capture.output( print(txt[-idx_last], row.names=T) )
+      len_first = tail(txt_printed, nrow(txt)) |> nchar() |> max()
+
+      # set the max width for the last column
+      max_len_last = max_len - len_first - 2L
+      if(max_len_last < n_last_name ) max_len_last = max_len
+
+      # truncate, return everything
+      txt[[idx_last]] = rswat_truncate_txt(txt[[idx_last]], max_len_last, NA_char, more_char)
+      return(txt)
+    }
   }
 
   # clean up input text and set default max_len to longest string length
   txt = gsub('\\s+', ' ', replace(txt, is.na(txt), NA_char), perl=TRUE) |> trimws()
-  if( is.null(max_len) ) max_len = nchar(txt) |> max()
+  if( is.null(max_len) ) max_len = max(nchar(txt))
 
   # make sure the truncation symbol is not too long
-  max_len_short = max_len - n_more
-  if( max_len_short < 0 ) stop('max_len cannot be less than the width of more_char')
+  if( max_len < nchar(more_char) ) more_char = substr(more_char, 1L, max_len)
+
+  # widths of annotation strings
+  n_NA = nchar(NA_char)
+  n_more = nchar(more_char)
 
   # truncate then overwrite last n_more characters of truncated strings with more_char
+  max_len_short = max_len - n_more
   txt_short = substr(txt, 1L, max_len) |> trimws()
   is_short = nchar(txt_short) < nchar(txt)
   txt_short[is_short] = txt[is_short] |>
@@ -261,18 +284,15 @@ rswat_string_dist = function(pattern, lu,
     is_punct = length(pattern) > 1
     if(!is_punct) return(dist_out)
 
-    # call in a loop over all string elements in pattern that can be split
-    adist_list = lapply(pattern, \(p) rswat_string_dist(pattern = p,
-                                                        lu = lu,
-                                                        lu_split = lu_split,
-                                                        pattern_split = FALSE,
-                                                        split_c = split_c,
-                                                        costs = costs))
 
-    # find best scores and apply a small penalty for splitting
-    adist_best = apply(do.call(cbind, adist_list), 1L, min) + split_c
+    # call in a loop over all string elements in pattern (returns matrix)
+    adist_mat = rswat_string_dist(pattern, lu, lu_split,
+                                  pattern_split = FALSE,
+                                  split_c = split_c,
+                                  costs = costs)
 
-    # find minimum distance by list element and overwrite existing value
+    # compute combined distance for all lu elements
+    adist_best = apply(adist_mat, 1L, \(x) min(x) + split_c * mean(x[which.min(x)]))
     is_improved = adist_best < dist_out
     if( any(is_improved) ) dist_out[is_improved] = adist_best[is_improved]
     return(dist_out)
@@ -400,97 +420,6 @@ rswat_amatch = function(m)
   out_vec[ ij[,'j'] ] = ij[,'i']
   names(out_vec) = colnames(m)
   return(out_vec)
-}
-
-#' Match names to aliases, merging other fields
-#'
-#' This uses rswat_amatch to match SWAT+ names to aliases in the PDF, then
-#' merges the two data frames. It uses a greedy algorithm for assignment that
-#' favors match patterns that are (nearly) in sequence
-#'
-#' Matching is done against the 'name' columns of both inputs
-#'
-#' @param name_df  input config file data
-#' @param alias_df docs data
-#' @param skip omit from search
-#' @param alias_desc s
-#' @param name_split s
-#' @param alias_split  s
-#' @param div_penalty internal
-#' @param k_select diagonals
-#'
-#' @return a
-#' @export
-rswat_fuzzy_match = function(name_df,
-                             alias_df,
-                             skip = TRUE,
-                             alias_desc = TRUE,
-                             name_split = TRUE,
-                             alias_split = TRUE,
-                             div_penalty = 1,
-                             k_select = NULL)
-{
-  # TODO: toggle symmetric, add lu_split etc
-
-  # flags to include an item in searching
-  is_name_used = if(skip) !name_df[['skip']] else rep(TRUE, nrow(name_df))
-  is_alias_used = if(skip) !alias_df[['skip']] else rep(TRUE, nrow(name_df))
-
-  # TODO: basic checks
-  if( !any(is_name_used) | !any(is_alias_used) ) return(name_df)
-
-  # set up pattern vector and look-up strings
-  name_key = stats::setNames(nm=name_df[['name']][is_name_used])
-  alias_nm = alias_df[['name']][is_alias_used]
-  if(alias_desc) { alias_lu = alias_nm } else {
-
-    # this mode assigns equal almost equal weight to description text
-    alias_lu = do.call(paste, list(alias_nm, alias_df[['desc']][is_alias_used]))
-    names(alias_lu) = alias_nm
-  }
-
-  # distance matrix for forward search
-  d_mat = rswat_string_dist(pattern = name_key,
-                            lu = alias_lu,
-                            lu_split = alias_split,
-                            pattern_split = name_split)
-
-  # search in the reverse direction and take transpose to get new distances
-  d_mat_t = t(rswat_string_dist(pattern = alias_nm,
-                                lu = name_key,
-                                lu_split = name_split,
-                                pattern_split = alias_split))
-
-  # penalty for divergence from input order
-  if( is.null(k_select) ) k_select = min(diff(dim(d_mat_t)), 0):max(diff(dim(d_mat_t)), 0)
-  pen_mat = Reduce('|', lapply(k_select, \(k) col(d_mat_t) - row(d_mat_t) == k ))
-  pen_mat = div_penalty * !pen_mat
-
-  # element-wise average of the two matrices plus penalty
-  d_mat_m = pen_mat + ( d_mat_t + d_mat ) / 2
-  rownames(d_mat_m) = alias_nm
-  colnames(d_mat_m) = name_key
-
-  # approximate matching
-  idx_amatch = rswat_amatch(d_mat_m)
-
-  # extract distances for result and indexing vectors for merging name_df, alias_df
-  match_dist = diag(d_mat_m[idx_amatch, names(idx_amatch), drop=FALSE])
-
-  # key to merge datasets
-  idx_alias = which(is_alias_used)[ idx_amatch ]
-  idx_name = which(is_name_used)[ name_key %in% names(idx_amatch) ]
-
-  # assign mapping, distance to name_df, then copy any extra fields from alias_df
-  name_df[['id_alias']][idx_name] = idx_alias
-  name_df[['distance']][idx_name] = match_dist
-  name_df[['alias']][idx_name] = alias_df[['name']][idx_alias]
-  alias_extra = names(alias_df)[ !( names(alias_df) %in% c('name', 'skip') ) ]
-  name_df[idx_name, alias_extra] = alias_df[idx_alias, alias_extra, drop=FALSE]
-
-  # update star rankings then return
-  name_df[['match']][idx_name] = ifelse(match_dist < 1, '**', '*')
-  return(name_df)
 }
 
 

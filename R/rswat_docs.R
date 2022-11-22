@@ -13,68 +13,98 @@
 #'
 #' @return data frame containing search results and their location in the PDF
 #' @export
-rswat_docs = function(pattern=NULL,
-                      f=NULL,
-                      fuzzy=1,
-                      intro=FALSE,
-                      descriptions=FALSE,
-                      desc_len=50L,
-                      .db=.rswat_db)
+rswat_docs = function(name=NULL, f=NULL, quiet=FALSE, .db=.rswat_db)
 {
+  # check for valid input
+  if( length(f) > 1 ) stop('multiple file names in the same call not supported')
+  if( length(name) > 1 ) stop('multiple variable names in the same call not supported')
 
-  # .db$docs$defs |> filter(file==f)
-  # cat(.db$docs$comment[[f]])
-
-
-  nm_show = c('file', 'name', 'desc_short')
-  lu_name = ifelse(descriptions, 'desc', 'name')
-
-  # file info mode
-  null_pattern = is.null(pattern)
-  if(null_pattern)
+  # handle unspecified variable name
+  if( is.null(name) )
   {
-    # a call without arguments
+    # when called without arguments, return all file names listed in docs
     if( is.null(f) )
     {
-      # name_all = unique(pdf_df[['defs']][['name']])
-      #table(pdf_df[['defs']][[lu_name]]) |> sort()
-      f_all = names(.db[['docs']][['comment']])
-      n_def = nrow(.db[['docs']][['defs']])
-      message(paste('found', n_def, 'variable, definitions', length(f_all), 'files'))
-      return(invisible(f_all))
+      # all available docs
+      f_docs = unique(.db$docs$defs$file)
+      f_in_dir = f_docs %in% .db$get_loaded_files()
+
+      # print choices
+      if(!quiet)
+      {
+        # print a message about which of these files are loaded
+        msg_known = paste(f_docs[f_in_dir], collapse=', ')
+        msg_unknown = paste(f_docs[!f_in_dir], collapse=', ')
+        message('select a file to see its documentation...')
+        all_loaded = length(msg_unknown) == 0
+        message(ifelse(all_loaded, 'all files loaded:', 'loaded:'))
+        cat(paste0(msg_known, '\n'))
+        if(!all_loaded)
+        {
+          message('not loaded:')
+          cat(paste0(msg_unknown, '\n'))
+        }
+      }
+
+      return(invisible(f_docs))
     }
 
-    # print the comment if requested
-    if(intro)
-    {
-      cat(.db[['docs']][['comment']][[f]])
-      return(invisible(pdf_df[['comment']][[f]]))
-    }
-
-    idx_out = .db[['docs']][['defs']][['file']] %in% f
-
-  } else {
-
-    fuzzy_result = rswat_fuzzy_search(pattern, .db[['docs']][['defs']][[lu_name]], fuzzy)
-    idx_out = fuzzy_result[['order']]
-    dist_out = fuzzy_result[['distance']]
-    nm_show = c('distance', nm_show)
+    # list all variable names available for this file in docs
+    name_docs = .db$docs$defs[.db$docs$defs$file == f, 'name']
+    if(!quiet) message(paste('select a variable name:', paste(name_docs, collapse=', ')))
+    return(invisible(name_docs))
   }
 
-  # TODO: implement files filter
-  # TODO: implement file name in patter
-  # TODO: implement description in pattern
+  # handle unspecified file name
+  if( is.null(f) )
+  {
+    # extract all file names associated with this variable name
+    f = unique(.db$docs$defs$file[ .db$docs$defs$name == name ])
 
-  # copy the requested subset and truncate descriptions
-  out_df = .db[['docs']][['defs']][idx_out,]
-  if(!null_pattern) out_df[['distance']] = dist_out
-  out_df[['desc_short']] = rswat_truncate_txt(out_df[['desc']], desc_len)
-  return(out_df[, nm_show])
+    # handle no results
+    if( length(f) == 0 )
+    {
+      msg_try = paste0('Try calling rswat_find("', name, '") to find an alias for this variable.')
+      if(!quiet) message(paste('no results.', msg_try))
+      return(invisible())
+    }
+
+    # handle multiple file matches
+    if( length(f) > 1 )
+    {
+      msg_select = paste(f, collapse=', ')
+      if(!quiet) message(paste('variable', name, 'found in multiple files. Select one:', msg_select))
+      return(invisible(f))
+    }
+  }
+
+  # more validity checks for input
+  is_name_match = .db[['docs']][['defs']][['name']] == name
+  is_file_match = .db[['docs']][['defs']][['file']] == f
+  if( !any(is_name_match | is_file_match) ) stop('no matches for name or f')
+  if( !any(is_name_match) ) return( rswat_docs(name=NULL, f=f, quiet=quiet, .db=.rswat_db) )
+  if( !any(is_file_match ) ) return( rswat_docs(name=name, f=NULL, quiet=quiet, .db=.rswat_db) )
+  is_match = is_name_match & is_file_match
+  if( !any(is_match) ) stop(paste('variable', name, 'not found in file', f))
+
+    # extract the matching documentation
+  docs_df = .db[['docs']][['defs']][is_name_match & is_file_match,]
+  if( nrow(docs_df) != 1L ) return('failed to find unique match')
+
+  # print the selected variable name definition
+  if( !quiet )
+  {
+    msg_loc = paste0('page ', docs_df[['page_num']], ', line ', docs_df[['line_num']], 'of PDF:')
+    msg_file = paste0('(file ', f, ')')
+    message( paste('printing definition of', name, msg_file, 'on', msg_loc) )
+    cat( docs_df[['desc_long']] )
+  }
+
+  return(invisible(docs_df[['desc_long']]))
 }
 
 
 #' Match SWAT+ variable names found in config files to definitions in documentation
-#'
 #'
 #' @param file_df input config file data
 #' @param desc_weight switch this to logical
@@ -104,17 +134,12 @@ rswat_match_docs = function(file_df,
                                                    .db = .db)
 
   # returned columns depend on the trim level
-  if( trim %in% 1:5 ) { nm_print = .rswat_gv_match_docs_trim(trim) } else {
-
-    # show all variables
-    nm_print = .rswat_gv_match_docs_trim(1)
-    nm_print = c(names(file_df)[ !( names(file_df) %in% nm_print ) ], nm_print)
-
-  }
+  if( !( trim %in% 1:5 ) ) trim = 5
+  nm_print = unique(c(names(file_df), .rswat_gv_match_docs_trim(trim)))
 
   # these columns get overwritten by the function
   n_file_df = nrow(file_df)
-  file_df[['distance']] = rep(NA_real_, n_file_df)
+  file_df[['match_distance']] = rep(NA_real_, n_file_df)
   file_df[['alias']] = rep(NA_character_, n_file_df)
   file_df[['desc']] = rep(NA_character_, n_file_df)
   file_df[['match']] = rep(NA_character_, n_file_df)
@@ -141,9 +166,10 @@ rswat_match_docs = function(file_df,
                        .db = .db)
     }))
 
-    # update returned columns list (some may have been dropped in call above)
-    nm_print = nm_print[ nm_print %in% names(match_result_list) ]
-    return(merge(file_df[,c('file', 'name')], match_result_list)[, nm_print])
+    # merge the match data frame with the input and return selected columns
+    nm_file = names(file_df)
+    nm_extra = nm_file[ !( nm_file %in% names(match_result_list) ) ]
+    return(merge(file_df[,c('file', 'name', nm_extra)], match_result_list)[, nm_print])
   }
 
   # message when no documentation found
@@ -170,7 +196,7 @@ rswat_match_docs = function(file_df,
     desc = substr(.db[['docs']][['defs']][['desc']][is_docs_on_f], 1L, desc_len)
   )
 
-  # omit two problematic strings from fuzzy name matching
+  # omit problematic strings from fuzzy name matching
   nm_omit = .rswat_gv_nm_nomatch()
   docs_df[['skip']] = docs_df[['name']] %in% nm_omit
   file_df[['skip']] = file_df[['name']] %in% nm_omit
@@ -196,7 +222,7 @@ rswat_match_docs = function(file_df,
     file_df[['match']][ idx_exact_in_file ] = '***'
     file_df[['desc']][ idx_exact_in_file ] = docs_df[['desc']][idx_exact_in_docs]
     file_df[['id_alias']][ idx_exact_in_file ] = idx_exact_in_docs
-    file_df[['distance']][ idx_exact_in_file ] = rep(0, length(idx_exact_in_file))
+    file_df[['match_distance']][ idx_exact_in_file ] = rep(0, length(idx_exact_in_file))
     file_df[['skip']][ idx_exact_in_file ] = TRUE
     docs_df[['skip']][ idx_exact_in_docs ] = TRUE
 
@@ -250,21 +276,18 @@ rswat_match_docs = function(file_df,
                                      div_penalty = div_penalty)
   }
 
-  # # round distances for printing
-  # match_result[['distance']] = round(match_result[['distance']], 2)
-
   # check for items that were not mapped
   if( !quiet )
   {
     # known names without a match in docs
     is_missing = is.na(match_result[['alias']]) & !file_df[['skip']]
-    msg_missing = paste(sum(is_missing), 'names not matched:') |>
+    msg_missing = paste(sum(is_missing), 'name(s) not matched:') |>
       paste( paste(match_result[['name']][is_missing], collapse=', ') ) |>
       rswat_truncate_txt()
 
     # variables in docs that couldn't be matched to the supplied names
     is_unused = !( docs_df[['name']] %in% match_result[['alias']] ) & !docs_df[['skip']]
-    msg_unused = paste(sum(is_unused), 'unmatched definitions in documentation:') |>
+    msg_unused = paste(sum(is_unused), 'unmatched definition(s) in documentation:') |>
       paste( paste(docs_df[['name']][is_unused], collapse=', ') ) |>
       rswat_truncate_txt()
 
@@ -276,3 +299,94 @@ rswat_match_docs = function(file_df,
   return(match_result[, nm_print])
 }
 
+
+#' Match names to aliases, merging other fields
+#'
+#' This uses rswat_amatch to match SWAT+ names to aliases in the PDF, then
+#' merges the two data frames. It uses a greedy algorithm for assignment that
+#' favors match patterns that are (nearly) in sequence
+#'
+#' Matching is done against the 'name' columns of both inputs
+#'
+#' @param name_df  input config file data
+#' @param alias_df docs data
+#' @param skip omit from search
+#' @param alias_desc s
+#' @param name_split s
+#' @param alias_split  s
+#' @param div_penalty internal
+#' @param k_select diagonals
+#'
+#' @return a
+#' @export
+rswat_fuzzy_match = function(name_df,
+                             alias_df,
+                             skip = TRUE,
+                             alias_desc = TRUE,
+                             name_split = TRUE,
+                             alias_split = TRUE,
+                             div_penalty = 1,
+                             k_select = NULL)
+{
+  # TODO: toggle symmetric, add lu_split etc
+
+  # flags to include an item in searching
+  is_name_used = if(skip) !name_df[['skip']] else rep(TRUE, nrow(name_df))
+  is_alias_used = if(skip) !alias_df[['skip']] else rep(TRUE, nrow(name_df))
+
+  # TODO: basic checks
+  if( !any(is_name_used) | !any(is_alias_used) ) return(name_df)
+
+  # set up pattern vector and look-up strings
+  name_key = stats::setNames(nm=name_df[['name']][is_name_used])
+  alias_nm = alias_df[['name']][is_alias_used]
+  if(alias_desc) { alias_lu = alias_nm } else {
+
+    # this mode assigns equal almost equal weight to description text
+    alias_lu = do.call(paste, list(alias_nm, alias_df[['desc']][is_alias_used]))
+    names(alias_lu) = alias_nm
+  }
+
+  # distance matrix for forward search
+  d_mat = rswat_string_dist(pattern = name_key,
+                            lu = alias_lu,
+                            lu_split = alias_split,
+                            pattern_split = name_split)
+
+  # search in the reverse direction and take transpose to get new distances
+  d_mat_t = t(rswat_string_dist(pattern = alias_nm,
+                                lu = name_key,
+                                lu_split = name_split,
+                                pattern_split = alias_split))
+
+  # penalty for divergence from input order
+  if( is.null(k_select) ) k_select = min(diff(dim(d_mat_t)), 0):max(diff(dim(d_mat_t)), 0)
+  pen_mat = Reduce('|', lapply(k_select, \(k) col(d_mat_t) - row(d_mat_t) == k ))
+  pen_mat = div_penalty * !pen_mat
+
+  # element-wise average of the two matrices plus penalty
+  d_mat_m = pen_mat + ( d_mat_t + d_mat ) / 2
+  rownames(d_mat_m) = alias_nm
+  colnames(d_mat_m) = name_key
+
+  # approximate matching
+  idx_amatch = rswat_amatch(d_mat_m)
+
+  # extract distances for result and indexing vectors for merging name_df, alias_df
+  match_dist = diag(d_mat_m[idx_amatch, names(idx_amatch), drop=FALSE])
+
+  # key to merge datasets
+  idx_alias = which(is_alias_used)[ idx_amatch ]
+  idx_name = which(is_name_used)[ name_key %in% names(idx_amatch) ]
+
+  # assign mapping, distance to name_df, then copy any extra fields from alias_df
+  name_df[['id_alias']][idx_name] = idx_alias
+  name_df[['match_distance']][idx_name] = match_dist
+  name_df[['alias']][idx_name] = alias_df[['name']][idx_alias]
+  alias_extra = names(alias_df)[ !( names(alias_df) %in% c('name', 'skip') ) ]
+  name_df[idx_name, alias_extra] = alias_df[idx_alias, alias_extra, drop=FALSE]
+
+  # update star rankings then return
+  name_df[['match']][idx_name] = ifelse(match_dist < 1, '**', '*')
+  return(name_df)
+}

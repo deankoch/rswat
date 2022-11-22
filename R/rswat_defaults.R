@@ -1,4 +1,4 @@
-
+# defaults for rswat functions
 
 # regex strings to use for organizing SWAT+ files into groups (called in rswat_scan_dir)
 .rswat_gv_type_lu = function() {
@@ -17,7 +17,7 @@
         c('\\.rivcells', 'gwflow'),
         c('\\.hrucell','gwflow'),
         c('\\.cellhru','gwflow'),
-        c('gwflow\\_', 'gwflow')) |> as.data.frame() |> stats::setNames(c('pattern', 'type'))
+        c('gwflow[[:punct:]]', 'gwflow')) |> as.data.frame() |> stats::setNames(c('pattern', 'type'))
 }
 
 # config files using "y" and "n" to represent logical (called in rswat_scan_txt, rswat_rtable_txt)
@@ -51,9 +51,9 @@
 
 .rswat_gv_match_docs_trim = function(trim) switch(trim,
 
-  '5' = c('id_alias', 'match', 'distance', 'name', 'alias', 'desc'),
-  '4' = c('match', 'distance', 'name', 'alias', 'desc'),
-  '3' = c('match', 'name', 'alias', 'desc'),
+  '5' = c('name', 'alias', 'id_alias', 'match_distance', 'match', 'desc'),
+  '4' = c('name', 'alias', 'match_distance', 'match', 'desc'),
+  '3' = c('name', 'alias', 'match', 'desc'),
   '2' = c('name', 'alias', 'desc'),
   '1' = c('name','alias'),
 )
@@ -61,10 +61,10 @@
 # attributes to display search results with trim
 .rswat_gv_find_trim = function(trim) switch(trim,
 
-  '5' = c('name', 'file', 'class', 'group', 'type', 'n_prec',  'table', 'field_num', 'line_num'),
-  '4' = c('name', 'file', 'class', 'group', 'type', 'table'),
-  '3' = c('name', 'file', 'group'),
-  '2' = c('name', 'file'),
+  '5' = c('file', 'type', 'group', 'table', 'field_num', 'line_num', 'class', 'n_prec', 'name'),
+  '4' = c('file', 'type', 'group', 'table', 'class', 'name'),
+  '3' = c('file', 'group', 'name'),
+  '2' = c('file', 'name'),
   '1' = c('name')
 
 )

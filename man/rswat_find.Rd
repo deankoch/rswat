@@ -9,7 +9,8 @@ rswat_find(
   f = NULL,
   fuzzy = 0L,
   docs = TRUE,
-  trim = 3L,
+  what = "header",
+  trim = 4L,
   n_max = 10L,
   quiet = FALSE,
   .db = .rswat_db

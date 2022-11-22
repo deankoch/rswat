@@ -2,76 +2,83 @@
 % Please edit documentation in R/rswat_find.R
 \name{rswat_fuzzy_search}
 \alias{rswat_fuzzy_search}
-\title{Fuzzy text search based on rswat_string_dist}
+\title{Fuzzy text search for strings}
 \usage{
 rswat_fuzzy_search(
   pattern,
-  lu,
-  fuzzy = 5L,
+  name_df,
+  name = "name",
+  fuzzy = 0L,
   lu_split = FALSE,
   pattern_split = FALSE,
   quiet = FALSE,
+  what = "header",
   .db = .rswat_db
 )
 }
 \arguments{
 \item{pattern}{character vector, the keyword to search for}
 
-\item{lu}{character vector, the strings to match against}
+\item{name_df}{data frame, with column 'name' containing strings to search}
+
+\item{name}{character, the column in \code{name_df} to search}
 
 \item{fuzzy}{integer, controlling the number of results returned (see details)}
 
-\item{lu_split}{logical, whether to split \code{lu} (see \code{?rswat_string_dist})}
+\item{lu_split}{logical, splits names at punctuation (passed to \code{rswat_string_dist})}
+
+\item{pattern_split}{logical, splits patterns at punctuation (passed to \code{rswat_string_dist})}
+
+\item{quiet}{logical, supresses console output}
 }
 \value{
-data frame with columns 'order', 'distance', and 'name'
+A copy of \code{name_df} sorted by new column 'distance'
 }
 \description{
-This calls \code{rswat_string_dist} (with default \code{costs}) to score how closely
-\code{pattern} matches with elements of \code{lu}, then sorts \code{lu} (best matching first), and
-returns a subset. To return more results, increase \code{fuzzy}.
+This calls \code{rswat_string_dist} to score how closely \code{pattern} matches with the
+strings in the \code{name} column of \code{name_df}. The function appends a score to \code{name_df}
+in column 'distance' (lower is better) and an integer column 'fuzzy' with values
+in \code{c(-1, 0, 1)}, indicating the type of match (exact, sub-string, approximate).
 }
 \details{
-For exact matches only, set \code{fuzzy=-1}. To also get results where \code{pattern} matches
-sub-strings of \code{lu} exactly, set \code{fuzzy=0}. To get all of the above, plus the first
-\code{fuzzy} approximate matches, set \code{fuzzy} to a positive integer.
+Results are sorted from best to worst before returning, with row names indicating
+the original order of \code{name_df}.
 
-Fuzzy matching is based on Levenstein distance and relative string lengths. See
-\code{?rswat_string_dist} for documentation on the scoring function and \code{lu_split}.
+With \code{fuzzy=-1}, only exact matches are returned; With \code{fuzzy=0}, sub-string matches
+are also returned; and \code{fuzzy>0} returns an additional \code{fuzzy} approximate results.
 
-The function returns results in a data frame, with 'order' indexing the input
-\code{lu} sorted by least distance, 'distance' indicating the match strength (lower is
-better), and 'name' indicating the string that was matched in \code{lu}.
+Fuzzy matching is based on Levenstein distance and relative string lengths.
+\code{lu_split} and \code{pattern_split} control whether strings are split at punctuation
+(with a small penalty to the score). See \code{?rswat_string_dist} for more information
+on the scoring function.
 
-\code{lu} can also list of equal-length character vectors, in which case the function
-is called on each vector separately with \code{fuzzy=Inf}
+For internal use: \code{name_df} can also be a character vector of file names to include
 }
 \examples{
-# grab some text strings (table headers)
-lu = .rswat_gv_cio_show()
-lu
+# grab some text strings (table headers) and add another column
+name_df = data.frame(name=.rswat_gv_cio_show())
+name_df[['foo']] = paste0('bar_', seq(nrow(name_df)))
 
 # compute distances. zero indicates exact match, higher indicates approximate match
-rswat_fuzzy_search('n_var', lu)
+rswat_fuzzy_search('n_var', name_df)
 
 # search term can be a substring
-rswat_fuzzy_search('var', lu)
-
-# some ties resolved by ordering according to string length similarity
-rswat_fuzzy_search('n', lu)
-
-# repeat with punctuation splitting turned on to more closely match the 'n' prefix
-rswat_fuzzy_search(pattern='n', lu, lu_split=TRUE)
-
-# fuzzing can help with typos
-rswat_fuzzy_search('n_bar', lu)
-rswat_fuzzy_search('nvar', lu)
-
-# false positives can happen due to length comparison
-rswat_fuzzy_search('num_variables', lu)
+rswat_fuzzy_search('var', name_df)
+rswat_fuzzy_search('n', name_df)
 
 # increase fuzzy to get more results
-rswat_fuzzy_search('num_variables', lu, fuzzy=3)
-rswat_fuzzy_search('num_variables', lu, fuzzy=5)
+rswat_fuzzy_search('n_var', name_df, fuzzy=2)
+
+# repeat with punctuation splitting turned on to more closely match the 'n' prefix
+rswat_fuzzy_search('n', name_df, fuzzy=2, pattern_split=TRUE, lu_split=TRUE)
+
+# fuzzing can help with typos
+rswat_fuzzy_search('n_bar', name_df, fuzzy=1)
+rswat_fuzzy_search('nvar', name_df, fuzzy=1)
+rswat_fuzzy_search('num_vars', name_df, fuzzy=1)
+
+# false positives can happen due to length comparison
+rswat_fuzzy_search('number_of_variables', name_df, fuzzy=2)
+
 
 }

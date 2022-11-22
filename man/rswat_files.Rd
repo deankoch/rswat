@@ -5,26 +5,29 @@
 \title{Return a data frame of information about SWAT+ files}
 \usage{
 rswat_files(
-  f = NULL,
+  pattern = NA,
+  type = NA,
+  loaded = NA,
+  known = TRUE,
   what = .rswat_gv_cio_show(),
-  type = "config",
-  include = "known",
-  refresh = FALSE,
+  quiet = FALSE,
+  n_max = 15,
+  refresh = TRUE,
   .db = .rswat_db
 )
 }
 \arguments{
-\item{f}{character vector, the file name(s) to select}
-
-\item{what}{character vector, the column(s) to select}
-
 \item{type}{character, one of 'config' (the default)...}
 
-\item{include}{character, one of 'loaded', 'cio', 'known', 'all'}
+\item{what}{character vector, the column(s) to select}
 
 \item{refresh}{logical, indicates to re-scan the directory}
 
 \item{.db}{rswat_db object, for internal use}
+
+\item{f}{character vector, the file name(s) to select}
+
+\item{include}{character, one of 'loaded', 'cio', 'known', 'all'}
 }
 \value{
 the requested data frame or vector, a subset of \code{cio}
