@@ -332,7 +332,7 @@ rswat_fuzzy_match = function(name_df,
 
   # flags to include an item in searching
   is_name_used = if(skip) !name_df[['skip']] else rep(TRUE, nrow(name_df))
-  is_alias_used = if(skip) !alias_df[['skip']] else rep(TRUE, nrow(name_df))
+  is_alias_used = if(skip) !alias_df[['skip']] else rep(TRUE, nrow(alias_df))
 
   # TODO: basic checks
   if( !any(is_name_used) | !any(is_alias_used) ) return(name_df)
