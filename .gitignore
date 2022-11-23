@@ -6,3 +6,5 @@
 /examples_temporary
 /example_gwflow
 /swat_executable
+rswat_dev.R
+rswat_dev_older.R
