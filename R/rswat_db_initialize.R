@@ -10,11 +10,12 @@
 #' nothing but has the side effect (when successful) of printing information about
 #' `.rswat_db` to the console (unless `quiet=TRUE`).
 #'
-#' @include rswat_db.R
+#' @include rswat_db.R rswat_db_helpers.R
 #' @include rswat.R rswat_utils.R rswat_defaults.R
 #' @include rswat_db_config_methods.R rswat_db_config_methods_helpers.R
 #' @include rswat_write_methods.R rswat_write_methods_helpers.R
 #' @include rswat_find.R rswat_docs.R
+#' @include rswat_run.R
 #'
 #' @param quiet logical, indicates to suppress console messages
 #' @param .db rswat_db object, for internal use
