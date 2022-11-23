@@ -9,7 +9,7 @@ rswat(
   exe_path = NULL,
   include = c("config", "weather"),
   exclude = .rswat_gv_exclude(),
-  n_max = 10L,
+  n_max = 5L,
   quiet = FALSE,
   reset = FALSE,
   .db = .rswat_db

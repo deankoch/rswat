@@ -29,7 +29,7 @@ rswat = function(swat_dir = NULL,
                  exe_path = NULL,
                  include = c('config', 'weather'),
                  exclude = .rswat_gv_exclude(),
-                 n_max = 10L,
+                 n_max = 5L,
                  quiet = FALSE,
                  reset = FALSE,
                  .db = .rswat_db)
@@ -78,7 +78,7 @@ rswat = function(swat_dir = NULL,
     # load included files or else warn if there aren't any left after exclusions
     if( !any(is_available))  { warning('no additional files loaded') } else {
 
-      rswat_open(f_df[['file']][is_available], refresh=FALSE)
+      rswat_open(f_df[['file']][is_available], refresh=FALSE, quiet=quiet)
     }
   }
 
@@ -88,7 +88,6 @@ rswat = function(swat_dir = NULL,
                         refresh = FALSE,
                         quiet = quiet,
                         n_max = n_max,
-                        sort_by = 'time_load',
                         .db = .db)
 
   # return nothing if no directory has been assigned
@@ -210,7 +209,11 @@ rswat_files = function(pattern = NA,
 #'
 #' @return a data frame or a list of them, the parameter tables in the config file
 #' @export
-rswat_open = function(f=NULL, quiet=FALSE, refresh=FALSE, update_stats=TRUE, .db=.rswat_db)
+rswat_open = function(f = NULL,
+                      refresh = FALSE,
+                      update_stats = TRUE,
+                      quiet = FALSE,
+                      .db = .rswat_db)
 {
   # make sure the project directory is assigned
   if( is.na(.db$get_swat_dir()) ) stop('Set the project directory first with rswat(swat_dir)')
@@ -223,6 +226,7 @@ rswat_open = function(f=NULL, quiet=FALSE, refresh=FALSE, update_stats=TRUE, .db
                               what = c('file', 'loaded'),
                               n_max = NA,
                               refresh = FALSE,
+                              quiet = quiet,
                               .db = .db)
 
     # print choices
@@ -272,86 +276,5 @@ rswat_open = function(f=NULL, quiet=FALSE, refresh=FALSE, update_stats=TRUE, .db
   if(quiet) return(invisible(list_out))
   return(list_out)
 }
-
-
-
-
-
-#' Get or set the SWAT+ simulation time parameters
-#'
-#' #' WORK IN PROGRESS
-#' TODO: add options for toggling different output files
-#' TODO: add write functionality
-#' TODO: incorporate warm-up period
-#' TODO: validate time intervals
-#'
-#' Helper function for reading or setting up parameters SWAT+ parameters
-#' controlling the time steps executed by the simulator, as well as the
-#' requested time steps (and variables) to print to output files.
-#'
-#' These parameters are located in two files:
-#'
-#' * "time.sim" controls the simulation start date, end date, and step size
-#' * "print.prt" controls which output variables get printed, and over which period
-#'
-#' Currently the function just reports the existing dates, along with a
-#' text string indicating the simulation time step.
-#'
-#' @param sim vector of start/end dates for the simulation (or NULL)
-#' @param prt vector of start/end dates for the printed output (or NULL)
-#' @param step simulation time step size: one of 'daily', 'twice_daily', 'hourly'
-#' @param step_prt integer, output step size (in days)
-#' @param .db rswat_db object, for internal use
-#'
-#' @return a list containing the currently assigned date ranges and step size
-#' @export
-rswat_time = function(sim=NULL, prt=NULL, step=NULL, step_prt=1L, .db=.rswat_db)
-{
-  # look-up table of step size codes
-  step_lu = .rswat_gv_step_codes()
-
-  # convert step to integer
-  if( !is.null(step) )
-  {
-    # sub-daily step size (the last entry in step_lu) is unsupported
-    msg_step_options = paste(head(names(step_lu), -1), collapse=', ')
-    step = step_lu[step]
-    if( is.na(step) ) stop('step must be one of: ', msg_step_options)
-  }
-
-  # load the files
-  print_prt = rswat_open('print.prt', .db=.db)
-  time_sim = rswat_open('time.sim', .db=.db)
-
-  # extract dates info from both files
-  dates_as_int = rbind(
-
-    # simulation start and end date
-    sim_start = c(j=time_sim[['day_start']], yr=time_sim[['yrc_start']]),
-    sim_end = c(j=time_sim[['day_end']], yr=time_sim[['yrc_end']]),
-
-    # output start and end date
-    print_start = c(j=print_prt[[1L]][['day_start']], yr=print_prt[[1L]][['yrc_start']]),
-    print_end = c(j=print_prt[[1L]][['day_end']], yr=print_prt[[1L]][['yrc_end']])
-  )
-
-  # text strings describing time steps
-  n_days_prt = print_prt[[1L]][['interval']]
-  prt_step_msg = ifelse(n_days_prt==1L, 'daily', paste('every', n_days_prt, 'days'))
-  idx_step = match(time_sim[['step']], step_lu)
-  if(is.na(idx_step)) idx_step = match(NA, step_lu)
-  sim_step_msg = names(step_lu)[idx_step]
-
-  # convert to date objects and return in a list with step size
-  dates = rswat_date_conversion(dates_as_int)
-  list(sim = dates[c('sim_start', 'sim_end'), 'date'],
-       prt = dates[c('print_start', 'print_end'), 'date'],
-       step = sim_step_msg)
-}
-
-
-
-
-
 
 
