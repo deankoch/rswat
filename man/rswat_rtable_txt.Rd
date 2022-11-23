@@ -4,7 +4,7 @@
 \alias{rswat_rtable_txt}
 \title{Extract a table from SWAT+ config text}
 \usage{
-rswat_rtable_txt(line_df, txt_path, table_num = NULL)
+rswat_rtable_txt(line_df, txt_path, table_num = NULL, weather_data = FALSE)
 }
 \arguments{
 \item{line_df}{data frame of the form returned by \code{rswat_ftable_txt}}

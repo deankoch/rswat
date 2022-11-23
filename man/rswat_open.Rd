@@ -4,7 +4,13 @@
 \alias{rswat_open}
 \title{Open a SWAT+ project file with rswat}
 \usage{
-rswat_open(f = NULL, quiet = FALSE, .db = .rswat_db)
+rswat_open(
+  f = NULL,
+  quiet = FALSE,
+  refresh = FALSE,
+  update_stats = TRUE,
+  .db = .rswat_db
+)
 }
 \arguments{
 \item{f}{character vector, the file name(s) to select}

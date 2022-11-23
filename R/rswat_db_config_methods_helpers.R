@@ -22,7 +22,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
                         type = character(0), # category: one of the names in `type_lu`
                         group = character(0), # group (as listed in file.cio)
                         size = numeric(0), # size of the file on disk
-                        modified = numeric(0), # date the file was last modified on disk
+                        modified = .POSIXct(integer(0)), # last modification date/time (from OS)
                         exists = logical(0), # is the file found in your swat directory?
                         loaded = logical(0), # has the file been loaded by rswat?
                         known = logical(0), # is the file known to file.cio?
@@ -32,6 +32,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
                         n_skip = integer(0), # number of lines skipped in parsing the file
                         msg = character(0), # the first line of the file (a comment)
                         path = character(0), # the absolute path to the file
+                        time_load = .POSIXct(integer(0)), # the Sys.time() when file was loaded
                         hash_load = character(0)) # the file hash at the time of loading
   }
 
@@ -53,11 +54,16 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   cio_new[['size']] = units::set_units(units::set_units(finfo[['size']], bytes), kilobytes)
   cio_new[['modified']] = finfo[['mtime']]
 
-  # label SWAT+ file type before returning
+  # tags for SWAT+ file type
   type_lu = .rswat_gv_type_lu()
   type_match = lapply(type_lu[['pattern']], \(s) which(grepl(s, cio_new[['file']])) )
   for( j in seq(nrow(type_lu)) ) cio_new[['type']][ type_match[[j]] ] = type_lu[['type']][j]
   cio_new[['known']] = !is.na(cio_new[['type']])
+
+  # groups for weather files
+  is_weather = cio_new[['type']] %in% 'weather'
+  weather_group_list = strsplit(basename(cio_new[['file']][is_weather]), split='\\.')
+  cio_new[['group']][is_weather] = sapply(weather_group_list, \(x) x[[2L]])
   return(cio_new)
 }
 
@@ -93,7 +99,7 @@ rswat_scan_txt = function(txt=NULL, f=NULL, delim='\\s+')
                        name = character(0), # name of the associated variable
                        line_num = integer(0), # line number of field
                        field_num = integer(0), # the field number
-                       skipped = logical(0), # was the field skipped in parsing?
+                       skipped = logical(0), # was the field skipped in parsing? ** DO WE NEED THIS?
                        class = character(0), # class of the field
                        header = logical(0), # does the field appear to lie on a header row?
                        tabular = logical(0), # does the field appear to be tabular data?
@@ -243,7 +249,7 @@ rswat_ftable_txt = function(line_df)
 #'
 #' @return data frame, the specified parameter table in the file
 #' @export
-rswat_rtable_txt = function(line_df, txt_path, table_num=NULL)
+rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, weather_data=FALSE)
 {
   # extract SWAT+ dir and file name from path and check for y/n logical encoding
   swat_dir = dirname(txt_path)
@@ -276,22 +282,26 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL)
   ln_end = data.table::last( line_df_sub[['line_num']] )
   ln_read = ln_start:ln_end
   has_headers = any(line_df_sub[['header']])
+  nrow_load = length(ln_read) - as.numeric(has_headers)
+
+  # exception to ln_end for (potentially long) weather data tables
+  if(weather_data) nrow_load = Inf
 
   # attempt to load as data frame - suppress warnings and copy error messages
   df_out = tryCatch({
 
     # count number of data rows
-    if( length(ln_read) - as.numeric(has_headers) > 0 )
+    if( nrow_load > 0 )
     {
       # fread is preferred except in single row case
       data.table::fread(input = txt_path,
                         skip = ln_start-1,
-                        nrows = length(ln_read)-as.numeric(has_headers),
+                        nrows = nrow_load,
                         fill = TRUE) |> as.data.frame()
 
     } else {
 
-      # read table for single row case
+      # read table for single row
       read.table(txt_path, skip=ln_start-as.numeric(has_headers), nrows=1)
 
     }

@@ -1,5 +1,9 @@
 # defaults for rswat functions
 
+# line number of the first data row in the weather input files, and the number used for NA
+.rswat_gv_weather_line_num = function() 4L
+.rswat_gv_weather_NA_val = function() -99
+
 # regex strings to use for organizing SWAT+ files into groups (called in rswat_scan_dir)
 .rswat_gv_type_lu = function() {
 

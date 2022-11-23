@@ -7,11 +7,11 @@
 rswat(
   swat_dir = NULL,
   exe_path = NULL,
-  reset = FALSE,
-  include = "config",
+  include = c("config", "weather"),
   exclude = .rswat_gv_exclude(),
-  n_max = 5L,
+  n_max = 10L,
   quiet = FALSE,
+  reset = FALSE,
   .db = .rswat_db
 )
 }
@@ -20,9 +20,9 @@ rswat(
 
 \item{exe_path}{character, path to the SWAT+ simulation executable (should have extension ".exe")}
 
-\item{reset}{logical, indicates to re-initialize rswat (erases any loaded data)}
-
 \item{exclude}{character vector, regular expressions for groups/names to not load}
+
+\item{reset}{logical, indicates to re-initialize rswat (erases any loaded data)}
 
 \item{.db}{rswat_db object, for internal use}
 

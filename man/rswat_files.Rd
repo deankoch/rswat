@@ -11,7 +11,8 @@ rswat_files(
   known = TRUE,
   what = .rswat_gv_cio_show(),
   quiet = FALSE,
-  n_max = 15,
+  n_max = 15L,
+  sort_by = "standard",
   refresh = TRUE,
   .db = .rswat_db
 )

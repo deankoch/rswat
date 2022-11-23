@@ -8,101 +8,89 @@
 rswat_db$methods( list(
 
   # opens a batch of config files in a loop
-  open_config_batch = function(f=NULL, ignore=.rswat_gv_exclude(), quiet=FALSE) {
+  open_config_batch = function(f=NULL, refresh=FALSE, update_stats=FALSE, quiet=FALSE) {
 
-    # read file.cio and refresh files list
-    parse_file_cio(refresh=TRUE, quiet=quiet)
-
-    # # make a default list of files to open
-    # if( is.null(f) ) f = cio_df |> dplyr::filter(!is.na(group)) |> pull(file)
-    # msg_unknown = paste(f, collapse=', ')
-
-    if( !any(get_cio_df(what='exists', f=f)) ) stop('file(s) not found')
-
-    # # exclude ineligible files
-    # f = cio_df |> dplyr::filter(exists) |>
-    #   dplyr::filter( !is.na(type) ) |>
-    #   dplyr::filter( type != 'log' ) |>
-    #   dplyr::filter( file %in% f ) |>
-    #   dplyr::filter( !(file %in% ignore) ) |>
-    #   dplyr::filter( !(type %in% ignore) ) |>
-    #   dplyr::filter( !(group %in% ignore) ) |>
-    #   dplyr::pull(file)
-
-    # skip if there were no eligible files
-    n_files = length(f)
-    if(n_files > 0)
+    # refresh files list and remove any existing data that would be replaced below
+    if( refresh )
     {
-      # remove any existing data that would be replaced below
+      refresh_cio_df()
       line_df <<- line_df[!(line_df[['file']] %in% f),]
       stor_df <<- stor_df[!(names(stor_df) %in% f)]
+      cio_df[['loaded']][ cio_df[['file']] %in% f ] <<- FALSE
+    }
 
-      # build console progress messages with fixed width, and initialize a progress bar object
+    # check file existence
+    n_files = sum( get_cio_df(what='exists', f=f, drop=TRUE) )
+    if( n_files == 0 ) stop('file(s) not found')
+
+    # build console progress messages with fixed width, and initialize a progress bar object
+    if(!quiet)
+    {
+      cat(paste('\nloading', n_files, 'file(s)'))
+      msg_width = nchar(f) |> max()
+      msg_pad = sapply(f, \(g) paste0(rep(' ', msg_width - nchar(g)), collapse=''))
+      msg_progress = paste(' > ', paste(f, msg_pad))
+      pb_width = getOption('width') - max(nchar(msg_progress)) - 5
+      pb = utils::txtProgressBar(max=1L+n_files, style=3L, width=pb_width)
+    }
+
+    # loop over files, loading data into package storage
+    line_df_list = vector(mode='list', length=n_files) |> stats::setNames(f)
+    for(fname in f)
+    {
+      # update progress bar prior to loading the file
       if(!quiet)
       {
-        cat(paste('\nloading', n_files, 'file(s)'))
-        msg_width = nchar(f) |> max()
-        msg_pad = sapply(f, \(g) paste0(rep(' ', msg_width - nchar(g)), collapse=''))
-        msg_progress = paste(' > ', paste(f, msg_pad))
-        pb_width = getOption('width') - max(nchar(msg_progress)) - 5
-        pb = utils::txtProgressBar(max=1L+n_files, style=3L, width=pb_width)
+        idx_progress = which(f==fname)
+        setTxtProgressBar(pb, idx_progress)
+        msg_progress[idx_progress] |> cat()
+        flush.console()
       }
 
-      # loop over files, loading data into package storage
-      line_df_list = vector(mode='list', length=n_files) |> stats::setNames(f)
-      for(fname in f)
-      {
-        # update progress bar prior to loading the file
-        if(!quiet)
-        {
-          idx_progress = which(f==fname)
-          setTxtProgressBar(pb, idx_progress)
-          msg_progress[idx_progress] |> cat()
-          flush.console()
-        }
+      # load the file and copy to storage, waiting until the end to update stats
+      open_config_file(fname, output=FALSE, refresh=FALSE, update_stats=FALSE)
+    }
 
-        # load the file and copy to storage, waiting until the end to update stats
-        open_config_file(fname, output=FALSE, update_stats=FALSE)
-      }
+    # update stats
+    if(update_stats) stats_cio_df()
 
-      # update stats
-      stats_cio_df()
-
-      # tidy final state for progress bar message
-      if(!quiet)
-      {
-        setTxtProgressBar(pb, 1L+length(f))
-        close(pb)
-        cat('\n')
-      }
-
+    # tidy final state for progress bar message
+    if(!quiet)
+    {
+      setTxtProgressBar(pb, 1L+length(f))
+      close(pb)
+      cat('\n')
     }
   },
 
   # open a swat config file
-  open_config_file = function(f, output=TRUE, refresh=TRUE, update_stats=TRUE) {
+  open_config_file = function(f, output=TRUE, refresh=FALSE, update_stats=refresh) {
 
-    # open and parse the file (populate line_df_temp) then copy tables to data frames in storage
-    get_config_tables(f, output=FALSE, refresh=refresh)
-
-    # skipped for empty files
-    if( length(stor_df[[f]]) > 0 )
+    # check if the file is already loaded and skip when refresh not requested
+    needs_loading = refresh | !get_cio_df(what='loaded', f=f, drop=TRUE)
+    if( needs_loading )
     {
-      # set the 'loaded' flag in files metadata and directory list
-      is_new = which(cio_df[['file']] == f)
-      cio_df[['loaded']][is_new] <<- TRUE
-      line_df_temp[['loaded']] <<- TRUE
+      # open and parse the file (populate line_df_temp) then copy tables to data frames in storage
+      get_config_tables(f, output=FALSE, refresh=refresh)
 
-      # add type and group columns to temporary variables data frame
-      line_df_temp[['type']] <<- cio_df[['type']][is_new]
-      line_df_temp[['group']] <<- cio_df[['group']][is_new]
+      # skipped for empty files
+      if( length(stor_df[[f]]) > 0 )
+      {
+        # set the 'loaded' flag in files metadata and directory list
+        is_new = which(cio_df[['file']] == f)
+        cio_df[['loaded']][is_new] <<- TRUE
 
-      # copy contents of temporary data frame to the persistent one then tidy row names
-      line_df <<- rbind(subset(line_df, file != f), line_df_temp)
-      rownames(line_df) <<- seq(nrow(line_df))
+        # add type and group columns to temporary variables data frame
+        line_df_temp[['type']] <<- cio_df[['type']][is_new]
+        line_df_temp[['group']] <<- cio_df[['group']][is_new]
 
-      # parse file.cio to update groups
-      if(f == 'file.cio') parse_file_cio(refresh=FALSE, quiet=TRUE)
+        # copy contents of temporary data frame to the persistent
+        line_df <<- rbind(subset(line_df, file != f), line_df_temp)
+        rownames(line_df) <<- seq(nrow(line_df))
+
+        # parse file.cio to update groups
+        if(f == 'file.cio') parse_file_cio(refresh=FALSE, quiet=TRUE)
+      }
     }
 
     # update OS file info
@@ -125,7 +113,7 @@ rswat_db$methods( list(
     if( output & !refresh & ( f %in% names(stor_df) ) ) return(stor_df[[f]])
 
     # `f` must be listed in `cio_df`. Grab the file path from there
-    read_path = cio_df |> dplyr::filter(file==f) |> dplyr::select(path) |> as.character()
+    read_path = get_cio_df(what='path', f=f, drop=TRUE)
     msg_refresh = 'file not recognized. Try refreshing the project directory with refresh_cio_df'
     if( length(read_path) == 0 ) stop(msg_refresh)
 
@@ -133,8 +121,9 @@ rswat_db$methods( list(
     table_num = line_df_temp[['table']] |> unique(na.rm=TRUE) |> sort()
     stor_df[[f]] <<- lapply(table_num, \(tn) rswat_rtable_txt(line_df_temp, read_path, tn) )
 
-    # fix for weird table structure in weather generators file
-    if(f == 'weather-wgn.cli') table_num = fix_weather_tables()
+    # hacks for loading header-less tables from weather-wgn.cli and weather input files
+    if(f == 'weather-wgn.cli') table_num = fix_weather_gen()
+    if('weather' == get_cio_df(what='type', f=f, drop=TRUE)) table_num = fix_weather_input(f)
 
     # copy variable names from fread calls, in a loop over table numbers
     for(tn in table_num)
@@ -186,9 +175,7 @@ rswat_db$methods( list(
     # if the data frame is empty (empty file), then we are done
     if(nrow(line_df_temp) == 0) return(line_df_temp)
 
-    # TODO: some hacking may be required for exceptional files like gwflow, weather.wgn here?
-
-    # assign precisions
+    # assign precision
     line_df_temp <<- rswat_n_prec_txt(line_df_temp, quiet=TRUE)
 
     # copy comment (if any) before returning
@@ -197,7 +184,7 @@ rswat_db$methods( list(
     return(invisible())
   },
 
-  # load plaintext as a list of character strings (one per line)
+  # load plain text as a list of character strings (one per line)
   get_config_txt = function(f, n_line=Inf, output=TRUE) {
 
     # `f` must be listed in `cio_df`. Grab the file path from there
@@ -213,13 +200,17 @@ rswat_db$methods( list(
     if( length(old_hash) == 0 ) old_hash = NA
     is_new = ifelse(is.na(old_hash), TRUE, new_hash==old_hash)
 
-    # use cached data if available
+    # skip loading if cached data available and file hash has not changed
     if( !(f %in% names(txt)) | is_new )
     {
-      # read line-by-line text from disk and update the hash
-      n_readLines = ifelse(is.infinite(n_line), -1, n_line)
+      # set number of lines to read with -1 indicating all (weather, output loaded elsewhere)
+      is_weather = cio_df[['type']][idx_cio] == 'weather'
+      n_readLines = ifelse(is_weather, .rswat_gv_weather_line_num() - 1L, -1L)
+
+      # read line-by-line text from disk and update file properties
       txt[[f]] <<- readLines(read_path, n=n_readLines)
       cio_df[['hash_load']][idx_cio] <<- new_hash
+      cio_df[['time_load']][idx_cio] <<- Sys.time()
     }
 
     if(output) return(txt[[f]])
@@ -267,18 +258,9 @@ rswat_db$methods( list(
     cio_df[['group']][ is_cio ] <<- 'cio'
     cio_df[['loaded']][ is_cio ] <<- TRUE
     cio_df[['type']][ is_listed | is_cio ] <<- 'config'
-    #cio_df[['known']] <<- !is.na(cio_df[['type']])
 
-    # TODO: deal with weather data files
-    # assign weather groups
-    # weather_fname = rswat_gv('weather_fname')
-    # weather_match = lapply(weather_fname, \(s) which(cio[['file']] == s))
-    # for( j in seq(nrow(weather_fname)) ) cio[['group']][ weather_match[[j]] ] = names(weather_fname)[j]
-    # assign groups to weather data files
-    #print(rswat_gv('weather_fname'))
-
-    # set factor levels for groups with cio first
-    group_order = c('cio', unique(cio_group[['group']]))
+    # set factor levels for groups with cio first, then those listed in file.cio, then others
+    group_order = unique( c('cio', cio_group[['group']], cio_df[['group']]) )
 
     # reorder the rows so they match the group order in file.cio
     idx_reorder = cio_df[['group']] |> factor(levels=group_order) |> order()
@@ -286,8 +268,8 @@ rswat_db$methods( list(
     rownames(cio_df) <<- seq(nrow(cio_df))
   },
 
-  # hack to present weather data as a set of station tables plus a single locations table
-  fix_weather_tables = function() {
+  # hack to present weather generator as a set of station tables plus a single locations table
+  fix_weather_gen = function() {
 
     table_num_vec = line_df_temp[['table']]
     all_num = table_num_vec |> unique(na.rm=TRUE) |> sort()
@@ -316,6 +298,59 @@ rswat_db$methods( list(
 
     # return the new set of table numbers
     line_df_temp[['table']] |> unique(na.rm=TRUE) |> sort()
+  },
+
+  # hack to present weather input data files as pairs of data frames
+  fix_weather_input = function(f) {
+
+    # this writes table number 2 with weather variable data in third column
+    table_num = 2L
+
+    # identify group for the file
+    group = strsplit(basename(f), split='\\.')[[1L]][2L]
+    read_path = get_cio_df(what='path', f=f, drop=TRUE)
+
+    # hard-coded weather input file variable name, class, and precision
+    df_start = data.frame(field_num = seq(3L),
+                          name = c('year', 'jday', group),
+                          class = c('integer', 'integer', 'numeric'),
+                          string = '',
+                          file = f,
+                          type = 'weather',
+                          group = group,
+                          table = table_num,
+                          header = FALSE,
+                          tabular = TRUE,
+                          skipped = FALSE,
+                          n_prec = c(NA, NA, 5L),
+                          line_num = .rswat_gv_weather_line_num() )
+
+    # temperature has two columns of data
+    if(group == 'tmp')
+    {
+      df_start[3L, 'name'] = 'tmp_min'
+      df_add = utils::modifyList(df_start[3L,], data.frame(field_num=4L, name='tmp_max'))
+      df_start = rbind(df_start, df_add)
+    }
+
+    # read the table with fread
+    stor_df[[f]][[table_num]] <<- rswat_rtable_txt(line_df = df_start,
+                                                   txt_path = read_path,
+                                                   table_num = table_num,
+                                                   weather_data = TRUE)
+
+    # find the final line number in the file
+    last_line_num = .rswat_gv_weather_line_num() + nrow( stor_df[[f]][[table_num]] ) - 1L
+
+    # set names and replace NAs
+    names(stor_df[[f]][[table_num]]) <<- df_start[['name']]
+    stor_df[[f]][[table_num]][ stor_df[[f]][[table_num]] == .rswat_gv_weather_NA_val() ] <<- NA
+
+    # add rows to df_start to represent last row of data
+    df_end = utils::modifyList(df_start, data.frame(line_num=last_line_num))
+    line_df_temp <<- rbind(line_df_temp, df_start, df_end)
+
+    return(seq(1L))
   }
 
 ))
