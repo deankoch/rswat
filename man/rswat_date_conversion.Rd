@@ -21,7 +21,7 @@ of Dates. \code{d} can also be a single integer vector c(j, yr)
 \examples{
 # convert from integers to Dates
 n_test = 10
-date_as_int = lapply(seq(n_test), \(x) c(j=sample.int(365, 1), yr=1950 + sample.int(100, 1)))
+date_as_int = lapply(seq(n_test), \(x) c(jday=sample.int(365, 1), year=1950 + sample.int(100, 1)))
 date_result = rswat_date_conversion(date_as_int)
 str(date_result)
 

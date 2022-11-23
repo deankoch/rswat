@@ -147,7 +147,7 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
 #' @examples
 #' # convert from integers to Dates
 #' n_test = 10
-#' date_as_int = lapply(seq(n_test), \(x) c(j=sample.int(365, 1), yr=1950 + sample.int(100, 1)))
+#' date_as_int = lapply(seq(n_test), \(x) c(jday=sample.int(365, 1), year=1950 + sample.int(100, 1)))
 #' date_result = rswat_date_conversion(date_as_int)
 #' str(date_result)
 #'
@@ -164,20 +164,43 @@ rswat_date_conversion = function(d) {
   # handle non-date inputs
   if( !is(d, 'Date') )
   {
-    # coerce vector, matrix and data frame to list
+    # matrix to data.frame
     if( is.matrix(d) ) d = as.data.frame(d)
-    if( is.data.frame(d) ) d = apply(d, 1, identity, simplify=FALSE)
-    if( !is.list(d) ) d = list(d)
 
-    # return the dates in a list
-    return( as.Date(sapply(d, \(x) paste0(x[1], '-', x[2])), format='%j-%Y') )
+    # check names and match to expected ones
+    nm_expect = c('jday', 'year')
+    nm_d = names(d)
+    if( is.null(nm_d) ) nm_d = nm_expect
+    nm_match = rswat_fuzzy_match(name_df = data.frame(name=nm_d),
+                                 alias_df = data.frame(name=nm_expect),
+                                 skip = FALSE,
+                                 alias_desc = FALSE,
+                                 name_split = FALSE,
+                                 div_penalty = 0)
+
+    # identify any extra columns to return and rename the year/date
+    is_mapped = !is.na(nm_match[['alias']])
+    nm_extra = nm_d[!is_mapped]
+    names(d) = c(nm_match[['alias']][is_mapped], nm_extra)
+
+    # convert to Date via string
+    d_as_date = d[nm_expect] |>
+      apply(1L, \(x) paste0(x[1L], '-', x[2L]), simplify=FALSE) |>
+      unlist() |>
+      as.Date(format='%j-%Y')
+
+    # copy over the original row names
+    out_df = cbind(data.frame(date=d_as_date), d[nm_extra])
+    rownames(out_df) = rownames(d)
+    return(out_df)
   }
 
+  warning('this mode not implemented yet')
   # handle date inputs
   out_list = lapply(d, \(x) {
 
-    c(j = as.integer(as.character(x, format='%j')),
-      yr = as.integer(as.character(x, format='%Y')))
+    c(jday = as.integer(as.character(x, format='%j')),
+      year = as.integer(as.character(x, format='%Y')))
     }
   )
 

@@ -27,11 +27,11 @@
 #'
 rswat = function(swat_dir = NULL,
                  exe_path = NULL,
-                 reset = FALSE,
-                 include = 'config',
+                 include = c('config', 'weather'),
                  exclude = .rswat_gv_exclude(),
-                 n_max = 5L,
+                 n_max = 10L,
                  quiet = FALSE,
+                 reset = FALSE,
                  .db = .rswat_db)
 {
   # check that the package was loaded properly and re-initialize if requested
@@ -78,15 +78,20 @@ rswat = function(swat_dir = NULL,
     # load included files or else warn if there aren't any left after exclusions
     if( !any(is_available))  { warning('no additional files loaded') } else {
 
-      rswat_open(f_df[['file']][is_available])
+      rswat_open(f_df[['file']][is_available], refresh=FALSE)
     }
   }
 
   # run check to print info then fetch a copy of files list
   rswat_check(quiet=quiet, .db=.db)
-  cio_out = rswat_files(known=TRUE, refresh=FALSE, quiet=quiet, n_max=n_max, .db=.db)
+  cio_out = rswat_files(loaded = TRUE,
+                        refresh = FALSE,
+                        quiet = quiet,
+                        n_max = n_max,
+                        sort_by = 'time_load',
+                        .db = .db)
 
-  # return nothing if no directory is assigned
+  # return nothing if no directory has been assigned
   if(nrow(cio_out) == 0) return(invisible())
 
   # return full data frame invisibly
@@ -116,7 +121,8 @@ rswat_files = function(pattern = NA,
                        known = TRUE,
                        what = .rswat_gv_cio_show(),
                        quiet = FALSE,
-                       n_max = 15,
+                       n_max = 15L,
+                       sort_by = 'standard',
                        refresh = TRUE,
                        .db = .rswat_db)
 {
@@ -125,6 +131,13 @@ rswat_files = function(pattern = NA,
 
   # copy requested subset of files data frame
   files_df = .db$get_cio_df()
+  msg_extra = NULL
+  if(sort_by == 'time_load')
+  {
+    # NAs get put at the end in this ordering
+    files_df = files_df[order(files_df[['time_load']], decreasing=TRUE), ]
+    msg_extra = '(sorted by load order)'
+  }
 
   # build an index of results to exclude
   is_omitted = logical( nrow(files_df) )
@@ -139,7 +152,7 @@ rswat_files = function(pattern = NA,
   # handle files with NA group or type
   is_omitted[ is.na(is_omitted) ] = TRUE
 
-  # all included results are returned invisibly
+  # subset of results to return invisibly later
   files_df = files_df[!is_omitted, what, drop=FALSE]
   row.names(files_df) = NULL
 
@@ -153,7 +166,10 @@ rswat_files = function(pattern = NA,
     n_included = sum(!is_omitted)
     n_show = min(n_max, n_included)
     is_clipped = n_show < n_included
-    if( n_included == 0 ) { message('no results') } else {
+    if( n_included == 0L ) { message('no results') } else {
+
+      # when both loaded and known are TRUE (redundant), set known to NA to clean up message
+      known = ifelse(is.na(loaded), known, ifelse(loaded, NA, known))
 
       # modifiers for message (gsub and outer paste convert NA to '')
       msg_known = gsub('NA', '', paste( paste0(c(' un', ' '), 'known')[1L + known]))
@@ -163,7 +179,7 @@ rswat_files = function(pattern = NA,
       # report on trimmed rows
       msg_report = paste0(n_included, msg_known, msg_pattern, ' file(s)', msg_load)
       message(msg_report)
-      if(is_clipped) message(paste('showing the first',  n_show))
+      if(is_clipped) message(paste('showing the first',  n_show, msg_extra))
 
       # print messages, then the data frame
       cat('\n')
@@ -173,7 +189,7 @@ rswat_files = function(pattern = NA,
         cat('...\n')
         n_omit = n_included - n_show
         msg_omit = paste(n_omit, 'result(s) not shown. Increase n_max to see more')
-        if( n_omit > 0 ) message(msg_omit)
+        if( n_omit > 0L ) message(msg_omit)
       }
     }
   }
@@ -181,10 +197,6 @@ rswat_files = function(pattern = NA,
   # returns empty data frame if nothing was found
   return( invisible(files_df) )
 }
-
-
-
-
 
 
 #' Open a SWAT+ project file with rswat
@@ -198,7 +210,7 @@ rswat_files = function(pattern = NA,
 #'
 #' @return a data frame or a list of them, the parameter tables in the config file
 #' @export
-rswat_open = function(f=NULL, quiet=FALSE, .db=.rswat_db)
+rswat_open = function(f=NULL, quiet=FALSE, refresh=FALSE, update_stats=TRUE, .db=.rswat_db)
 {
   # make sure the project directory is assigned
   if( is.na(.db$get_swat_dir()) ) stop('Set the project directory first with rswat(swat_dir)')
@@ -217,46 +229,46 @@ rswat_open = function(f=NULL, quiet=FALSE, .db=.rswat_db)
     if(!quiet)
     {
       # print a message about loaded and not-loaded files
-      f_msg1 = paste(subset(f_available, loaded==TRUE)[['file']], collapse=', ')
-      f_msg2 = paste(subset(f_available, loaded==FALSE)[['file']], collapse=', ')
-      all_loaded = nchar(f_msg2) == 0
+      msg_loaded = paste(f_available[['file']][ f_available[['loaded']] ], collapse=', ')
+      msg_not_loaded = paste(f_available[['file']][ !f_available[['loaded']] ], collapse=', ')
+      all_loaded = nchar(msg_not_loaded) == 0L
 
       message('select a file...')
       message(ifelse(all_loaded, 'all files loaded:', 'loaded:'))
-      cat(paste0(f_msg1, '\n'))
+      cat(paste0(msg_loaded, '\n'))
       if(!all_loaded)
       {
         message('not loaded:')
-        cat(paste0(f_msg2, '\n'))
+        cat(paste0(msg_not_loaded, '\n'))
       }
     }
 
     return(invisible(f_available))
   }
 
-  # handle data frame input
-  if(is.data.frame(f)) f = f[['file']]
+  # overwrite files argument f with 'file' column from data frame input
+  if( is.data.frame(f) ) f = f[['file']]
 
   # recursive call to open multiple files in a loop and return results in list
-  if( length(f) > 1 )
+  if( length(f) > 1L )
   {
     # attempt open the files then check for success
-    .db$open_config_batch(f, quiet=quiet)
+    .db$open_config_batch(f, refresh=refresh, update_stats=update_stats, quiet=quiet)
     is_loaded = .db$is_file_loaded(f)
     if( any(!is_loaded) ) warning('files ', paste(paste(f[!is_loaded], collapse=', ')), ' not found')
 
     # return everything that was successfully loaded, collapsing length-1 lists
     list_out = .db$get_stor_df(f[is_loaded])
-    if(length(list_out) == 1) list_out = list_out[[1]]
+    if(length(list_out) == 1L) list_out = list_out[[1]]
 
   } else {
 
     # open a single file
-    list_out = .db$open_config_file(f)
+    list_out = .db$open_config_file(f, refresh=refresh, update_stats=update_stats)
   }
 
   # collapse length-1 lists and return
-  if(length(list_out) == 1) list_out = list_out[[1]]
+  if(length(list_out) == 1L) list_out = list_out[[1]]
   if(quiet) return(invisible(list_out))
   return(list_out)
 }
@@ -312,39 +324,29 @@ rswat_time = function(sim=NULL, prt=NULL, step=NULL, step_prt=1L, .db=.rswat_db)
   time_sim = rswat_open('time.sim', .db=.db)
 
   # extract dates info from both files
-  dates_as_int = list(
+  dates_as_int = rbind(
 
-    # simulation start date
-    sim_start = c(j=time_sim[['day_start']],
-                  yr=time_sim[['yrc_start']]),
+    # simulation start and end date
+    sim_start = c(j=time_sim[['day_start']], yr=time_sim[['yrc_start']]),
+    sim_end = c(j=time_sim[['day_end']], yr=time_sim[['yrc_end']]),
 
-    # simulation end date
-    sim_end = c(j=time_sim[['day_end']],
-                yr=time_sim[['yrc_end']]),
-
-    # output start date
-    print_start = c(j=print_prt[[1]][['day_start']],
-                    yr=print_prt[[1]][['yrc_start']]),
-
-    # output end date
-    print_end = c(j=print_prt[[1]][['day_end']],
-                  yr=print_prt[[1]][['yrc_end']])
+    # output start and end date
+    print_start = c(j=print_prt[[1L]][['day_start']], yr=print_prt[[1L]][['yrc_start']]),
+    print_end = c(j=print_prt[[1L]][['day_end']], yr=print_prt[[1L]][['yrc_end']])
   )
 
   # text strings describing time steps
-  n_days_prt = print_prt[[1]][['interval']]
-  prt_step_msg = ifelse(n_days_prt==1, 'daily', paste('every', n_days_prt, 'days'))
+  n_days_prt = print_prt[[1L]][['interval']]
+  prt_step_msg = ifelse(n_days_prt==1L, 'daily', paste('every', n_days_prt, 'days'))
   idx_step = match(time_sim[['step']], step_lu)
   if(is.na(idx_step)) idx_step = match(NA, step_lu)
   sim_step_msg = names(step_lu)[idx_step]
 
   # convert to date objects and return in a list with step size
-  dates_as_Date = setNames(rswat_date_conversion(dates_as_int), names(dates_as_int))
-  list(sim = dates_as_Date[c('sim_start', 'sim_end')],
-       prt = dates_as_Date[c('print_start', 'print_end')],
+  dates = rswat_date_conversion(dates_as_int)
+  list(sim = dates[c('sim_start', 'sim_end'), 'date'],
+       prt = dates[c('print_start', 'print_end'), 'date'],
        step = sim_step_msg)
-
-
 }
 
 
