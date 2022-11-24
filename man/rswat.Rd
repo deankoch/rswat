@@ -6,7 +6,7 @@
 \usage{
 rswat(
   swat_dir = NULL,
-  exe_path = NULL,
+  exe_path = NA_character_,
   include = c("config", "weather"),
   exclude = .rswat_gv_exclude(),
   n_max = 5L,

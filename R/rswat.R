@@ -26,7 +26,7 @@
 #' @export
 #'
 rswat = function(swat_dir = NULL,
-                 exe_path = NULL,
+                 exe_path = NA_character_,
                  include = c('config', 'weather'),
                  exclude = .rswat_gv_exclude(),
                  n_max = 5L,
@@ -38,14 +38,33 @@ rswat = function(swat_dir = NULL,
   rswat_check(quiet=TRUE, .db=.db)
   if(reset) .db$initialize()
 
-  # change or initialize the project directory
-  if( is.null(swat_dir) ) swat_dir = .db$get_swat_dir()
-  .db$set_swat_dir(swat_dir)
-  if( is.na(.db$get_swat_dir()) ) stop('Set the project directory first with rswat(swat_dir)')
+  # handle calls without project assignment
+  old_swat_dir = .db$get_swat_dir()
+  is_assigned = !is.na(old_swat_dir)
+  if(!is_assigned)
+  {
+    if( is.null(swat_dir) )
+    {
+      # message if rswat called before project directory is specified
+      message('Project directory has not been assigned. Try rswat(swat_dir)')
+      return(invisible())
+    }
 
-  # change or initialize the executable path (optional)
-  if( is.null(exe_path) ) exe_path = .db$get_exe_path()
-  .db$set_exe_path(exe_path)
+    # on first assignment
+    old_swat_dir = rswat_validate_dpath(swat_dir, 'swat_dir')
+  }
+
+  # assign the project path and executable path (optional)
+  swat_dir = .db$set_swat_dir(ifelse(is.null(swat_dir), old_swat_dir, swat_dir))
+  if( !is.na(exe_path) ) .db$set_exe_path(exe_path)
+  exe_path = .db$get_exe_path()
+
+  # re-initialize the rswat_db if swat_dir was changed (skipped on initial call)
+  if( old_swat_dir != swat_dir )
+  {
+    if(!quiet) message(paste('changed project directory to:', swat_dir))
+    .db$initialize(swat_dir=swat_dir, exe_path=exe_path)
+  }
 
   # scan for files
   .db$refresh_cio_df()
@@ -78,6 +97,7 @@ rswat = function(swat_dir = NULL,
     # load included files or else warn if there aren't any left after exclusions
     if( !any(is_available))  { warning('no additional files loaded') } else {
 
+      if(!quiet) message(paste('loading files from:', swat_dir))
       rswat_open(f_df[['file']][is_available], refresh=FALSE, quiet=quiet)
     }
   }
