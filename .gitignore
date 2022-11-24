@@ -3,8 +3,7 @@
 .RData
 .Ruserdata
 /R_backup
-/examples_temporary
-/example_gwflow
+/example_projects
 /swat_executable
 rswat_dev.R
 rswat_dev_older.R
