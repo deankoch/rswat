@@ -166,7 +166,7 @@ rswat_db = setRefClass('rswat_db',
       files_loaded = get_loaded_files(check_dir=check_dir)
       if( length(files_loaded) == 0 ) return(FALSE)
       if( length(f) == 0 ) return(FALSE)
-      return( f %in% files_loaded )
+      return( stats::setNames(f %in% files_loaded, nm=f) )
     },
 
     # returns a string summarizing file listed in file.cio
@@ -240,59 +240,11 @@ rswat_db = setRefClass('rswat_db',
       if(!render) return(dates)
 
       # or instead return a string for printing this information
-      return( paste(paste0('[', dates[['date']], ']'), collapse=' to ') )
+      if( anyNA(dates) ) return(NA_character_)
+      return( paste0('[', paste(dates[['date']], collapse=' to '), ']') )
     },
 
     # console printout
-    show = function() {
-
-      # for building message about contents of file.cio, time.sim, print.prt
-      config_files_msg = NULL
-      dates_sim_msg = NULL
-      dates_prt_msg = NULL
-      weather_dates_msg = NULL
-
-      # check if they are loaded
-      is_file_cio_loaded = is_file_loaded('file.cio', check_dir=FALSE)
-      is_time_sim_loaded = is_file_loaded('time.sim', check_dir=FALSE)
-      is_print_prt_loaded = is_file_loaded('print.prt', check_dir=FALSE)
-
-      # print file info when file.cio has been loaded
-      if(is_file_cio_loaded)
-      {
-        # build a message about files loaded
-        config_files_msg = paste0('reports ', report_known_files(), '\n')
-
-        # build messages about simulation dates
-        if(is_time_sim_loaded) dates_sim_msg = get_sim_dates(prt=FALSE, render=TRUE)
-        if(is_print_prt_loaded) dates_prt_msg = get_sim_dates(prt=TRUE, render=TRUE)
-      }
-
-      # fetch the dates covered by weather inputs as printable strings
-      weather_sta_cli_msg = rswat_weather_report(lazy=FALSE, .db=.self)
-
-      # different output depending on steps being completed
-      swat_dir_msg = '•       directory: not assigned\n'
-      exe_path_msg = '•       simulator: not assigned\n'
-      time_sim_msg = '•        time.sim: not loaded\n'
-      file_cio_msg = '•        file.cio: not loaded\n'
-      print_prt_msg = '•       print.prt: not loaded\n'
-      if(!is.na(swat_dir)) swat_dir_msg = paste('✓       directory:', swat_dir, '\n')
-      if(!is.na(exe_path)) exe_path_msg = paste('✓       simulator:', exe_path, '\n')
-      if(is_file_cio_loaded) file_cio_msg = paste('✓        file.cio:', config_files_msg, '\n')
-      if(is_time_sim_loaded) time_sim_msg = paste('✓        time.sim:', dates_sim_msg, '\n')
-      if(is_print_prt_loaded) print_prt_msg = paste('✓       print.prt:', dates_prt_msg, '\n')
-
-      hbreak_msg = '  ----------------'
-      message('rswat')
-      message(hbreak_msg)
-      cat(paste0(swat_dir_msg, exe_path_msg))
-      message(hbreak_msg)
-      cat(paste0(time_sim_msg, print_prt_msg))
-      message(hbreak_msg)
-      cat(weather_sta_cli_msg)
-      message(hbreak_msg)
-      cat(file_cio_msg)
-    }
+    show = function() rswat_summarize_db(.db=.self)
   )
 )

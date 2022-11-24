@@ -1,5 +1,9 @@
 # defaults for rswat functions
 
+# characters for show method of rswat_db
+#.rswat_ok_char = function() c(yes='\U25B7', fail='\U25C9', no='\U25B6', sub='\U25B9')
+.rswat_ok_char = function() c(yes='\U25C7', fail='\U25C8', no='\U25C6', sub='\U25B9')
+
 # line number of the first data row in the weather input files, and the number used for NA
 .rswat_gv_weather_line_num = function() 4L
 .rswat_gv_weather_NA_val = function() -99
