@@ -4,7 +4,13 @@
 \alias{rswat_rtable_txt}
 \title{Extract a table from SWAT+ config text}
 \usage{
-rswat_rtable_txt(line_df, txt_path, table_num = NULL, weather_data = FALSE)
+rswat_rtable_txt(
+  line_df,
+  txt_path,
+  table_num = NULL,
+  all_rows = FALSE,
+  quiet = FALSE
+)
 }
 \arguments{
 \item{line_df}{data frame of the form returned by \code{rswat_ftable_txt}}
@@ -12,6 +18,10 @@ rswat_rtable_txt(line_df, txt_path, table_num = NULL, weather_data = FALSE)
 \item{txt_path}{character, the path to the SWAT+ text file to be read}
 
 \item{table_num}{integer, the index of the table in the file}
+
+\item{all_rows}{logical, loads all rows (using line_df only to determine start line)}
+
+\item{quiet}{logical, suppresses warnings about errors in fread}
 }
 \value{
 data frame, the specified parameter table in the file

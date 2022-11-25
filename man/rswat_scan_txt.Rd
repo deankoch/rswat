@@ -4,7 +4,7 @@
 \alias{rswat_scan_txt}
 \title{Scan data values from a SWAT+ config file line-by-line}
 \usage{
-rswat_scan_txt(txt = NULL, f = NULL, delim = "\\\\s+")
+rswat_scan_txt(txt = NULL, f = NULL, type = "config", delim = "\\\\s+")
 }
 \arguments{
 \item{txt}{character vector, the output of \code{readLines(f)} (or a subset)}

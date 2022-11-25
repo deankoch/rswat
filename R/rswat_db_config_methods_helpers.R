@@ -89,8 +89,10 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
 #'
 #' @return a data frame of information about the fields in the file
 #' @export
-rswat_scan_txt = function(txt=NULL, f=NULL, delim='\\s+')
+rswat_scan_txt = function(txt=NULL, f=NULL, type='config', delim='\\s+')
 {
+  # TODO: check if we really need argument f or NULL defaults
+
   # define attribute names and types
   line_df = data.frame(file = character(0), # file name
                        type = character(0), # file type
@@ -106,14 +108,18 @@ rswat_scan_txt = function(txt=NULL, f=NULL, delim='\\s+')
                        table = integer(0), # table number for files with multiple tables
                        n_prec = integer(0)) # number of digits after decimal point
 
-  # if there are no non-empty lines, we are finished
+  # return this data frame in default calls without arguments (or whenever txt is NULL)
   n_txt = length(txt)
   if(n_txt == 0) return(line_df)
 
+  # set the number of lines to skip and return empty data frame when there is no txt data to parse
+  n_skip = .rswat_gv_line_num(type, f, skip=TRUE)
+  if( min(n_txt, n_txt-n_skip) <= 0 ) return(line_df)
+
   # strip comment then split into white space delimited fields to get columns
-  txt_wsr = txt[-1] |> trimws() |> strsplit(split=delim)
+  txt_wsr = txt[-seq(n_skip)] |> trimws() |> strsplit(split=delim)
   txt_cnum = lapply(txt_wsr, seq_along)
-  txt_ln = Map(\(x, y) rep(x, length(y)), x=1L+seq(n_txt-1L), y=txt_cnum)
+  txt_ln = Map(\(x, y) rep(x, length(y)), x=n_skip+seq(n_txt-1L), y=txt_cnum)
 
   # bundle everything into a data frame, adding back unassigned columns from template
   nm_join = c('string', 'line_num', 'field_num')
@@ -246,10 +252,12 @@ rswat_ftable_txt = function(line_df)
 #' @param line_df data frame of the form returned by `rswat_ftable_txt`
 #' @param txt_path character, the path to the SWAT+ text file to be read
 #' @param table_num integer, the index of the table in the file
+#' @param all_rows logical, loads all rows (using line_df only to determine start line)
+#' @param quiet logical, suppresses warnings about errors in fread
 #'
 #' @return data frame, the specified parameter table in the file
 #' @export
-rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, weather_data=FALSE)
+rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, all_rows=FALSE, quiet=FALSE)
 {
   # extract SWAT+ dir and file name from path and check for y/n logical encoding
   swat_dir = dirname(txt_path)
@@ -265,10 +273,10 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, weather_data=FALS
 
   # catch problems with table_num
   all_num_string = paste(all_num, collapse=', ')
-  if( length(table_num) > 1 ) stop('table_num must be an integer or NULL')
+  if( length(table_num) > 1L ) stop('table_num must be an integer or NULL')
   if( !(table_num %in% all_num) )
   {
-    if(length(all_num) > 1) stop(paste('table_num should be one of:', all_num_string))
+    if(length(all_num) > 1L) stop(paste('table_num should be one of:', all_num_string))
     stop(paste('table_num must be set to', all_num_string))
   }
 
@@ -282,29 +290,38 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, weather_data=FALS
   ln_end = data.table::last( line_df_sub[['line_num']] )
   ln_read = ln_start:ln_end
   has_headers = any(line_df_sub[['header']])
-  nrow_load = length(ln_read) - as.numeric(has_headers)
+  nrow_load = length(ln_read) - as.integer(has_headers)
+  if(all_rows) nrow_load = Inf
 
-  # exception to ln_end for (potentially long) weather data tables
-  if(weather_data) nrow_load = Inf
+  # expected number of fields to load (prevents bugs with unnamed final columns)
+  n_field = max(line_df_sub[['field_num']])
 
-  # attempt to load as data frame - suppress warnings and copy error messages
+  # load as data frame, copying error messages as attribute
   df_out = tryCatch({
 
-    # count number of data rows
-    if( nrow_load > 0 )
+    # error on empty config files
+    if( nrow_load == 0L ) stop('0 rows requested')
+
+    # check for unexpectedly empty files when attempting to read all
+    if( is.infinite(nrow_load) )
     {
-      # fread is preferred except in single row case
-      data.table::fread(input = txt_path,
-                        skip = ln_start-1,
-                        nrows = nrow_load,
-                        fill = TRUE) |> as.data.frame()
+      # fast call to check if there is at least one data row
+      is_empty = 1L == nrow(data.table::fread(input = txt_path,
+                                              skip = ln_start-2L,
+                                              nrows = 2L,
+                                              header = FALSE,
+                                              fill = TRUE))
 
-    } else {
-
-      # read table for single row
-      read.table(txt_path, skip=ln_start-as.numeric(has_headers), nrows=1)
-
+      # in this case skip would equal length of file, causing an error
+      if(is_empty) stop('requested table had 0 data rows')
     }
+
+    # load all requested table lines with fread
+    data.table::fread(input = txt_path,
+                      skip = ln_start-1L,
+                      select = seq(n_field),
+                      nrows = nrow_load,
+                      fill = TRUE) |> as.data.frame()
 
   }, error = function(err) err) |> suppressWarnings()
 
@@ -313,7 +330,7 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, weather_data=FALS
   {
     # report errors to user as warning
     err_msg = as.character(df_out)
-    warning(err_msg)
+    if(!quiet) warning(err_msg)
 
     # dummy return value with info in attributes
     df_out = data.frame()
@@ -326,7 +343,7 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, weather_data=FALS
   attr(df_out, 'rswat_table_num') = table_num
 
   # tidy non-empty tables
-  if( nrow(df_out) > 0 )
+  if( nrow(df_out) > 0L )
   {
     # convert 'y'/'n' columns to logical
     is_logical = line_df_sub[['class']] == 'logical'
