@@ -2,8 +2,7 @@
 % Please edit documentation in R/rswat_db_config_methods.R
 \name{rswat_db_config_methods}
 \alias{rswat_db_config_methods}
-\title{Methods for opening and parsing SWAT+ config files}
+\title{Methods for opening and parsing SWAT+ config, weather, and output files}
 \description{
-These define further methods for an rswat_db reference class object, related
-to opening configuration files
+Methods for opening and parsing SWAT+ config, weather, and output files
 }

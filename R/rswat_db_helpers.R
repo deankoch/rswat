@@ -24,7 +24,7 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db)
   colnames(show_mat) = c('txt', 'alt')
   n_head = max(nchar(show_mat[, 'txt']))
   swat_msg = ok_char['no'] |>
-    paste(rswat_truncate_txt(show_mat[, 'txt'], n_head, just='right')) |>
+    paste(rswat_truncate_txt(show_mat[,'txt'], n_head, just='right')) |>
     paste(show_mat[,'alt']) |>
     stats::setNames( rownames(show_mat) )
 
@@ -46,7 +46,7 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db)
 
   # check what's loaded
   f_check = c(cio='file.cio', time='time.sim', print='print.prt', climate='weather-sta.cli')
-  is_loaded = .db$is_file_loaded(f_check, check_dir=FALSE)
+  is_loaded = .db$is_file_loaded(f_check)
 
   # print file info message
   if( is_loaded['file.cio'] )
@@ -204,7 +204,16 @@ rswat_weather_report = function(lazy = TRUE,
 
 
 
-# fetch the set of dates contained in the weather input files
+#
+#' Fetch the range of dates in a SWAT+ weather input file
+#'
+#' work in progress
+#'
+#' @param lazy logical
+#' @param .db rswat_db object reference, for internal use
+#'
+#' @return returns a data frame of start end dates
+#' @export
 rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db)
 {
   f_sta = 'weather-sta.cli'
