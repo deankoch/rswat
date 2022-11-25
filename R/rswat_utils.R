@@ -439,3 +439,13 @@ rswat_amatch = function(m)
 }
 
 
+# Initializes an empty dataframe with the specified names
+rswat_empty_df = function(nm)
+{
+  # for now this just sets everything to empty character class
+  if(is.character(nm)) matrix(nrow=0, ncol=length(nm)) |> data.frame() |> stats::setNames(nm)
+  if(is.numeric(nm)) matrix(nrow=0, ncol=round(nm)) |> data.frame()
+  stop('unrecognized input')
+}
+
+
