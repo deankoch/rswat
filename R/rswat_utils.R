@@ -67,42 +67,35 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
   {
     # set default max_len based on R option (only tested on base windows GUI)
     if( is.null(max_len) ) max_len = unlist(options('width'))
-    if( ncol(txt) == 1L )
-    {
-      # data.frame with one column is coerced to character
-      return( rswat_truncate_txt(txt[[1L]], max_len, NA_char, more_char, just) )
 
-    } else {
+    # check for names
+    idx_last = length(txt)
+    if( is.null(names(txt)[idx_last]) ) stop('last column of txt must be named')
+    n_last_name = nchar( names(txt)[idx_last] )
 
-      # check for names
-      idx_last = length(txt)
-      if( is.null(names(txt)[idx_last]) ) stop('last column of txt must be named')
-      n_last_name = nchar( names(txt)[idx_last] )
+    # replace NA with character and add padding to all but last column
+    txt[-idx_last] = replace(txt[-idx_last], is.na(txt[-idx_last]), NA_char)
+    txt[, -idx_last] = apply(txt[, -idx_last, drop=FALSE], 2L, \(x) {
 
-      # replace NA with character and add padding to all but last column
-      txt[-idx_last] = replace(txt[-idx_last], is.na(txt[-idx_last]), NA_char)
-      txt[, -idx_last] = apply(txt[, -idx_last, drop=FALSE], 2L, \(x) {
+      # columns padded to common length
+      rswat_truncate_txt(x,
+                         max_len = NULL,
+                         NA_char = NA_char,
+                         more_char = more_char,
+                         just = just)
+    })
 
-        # columns padded to common length
-        rswat_truncate_txt(x,
-                           max_len = NULL,
-                           NA_char = NA_char,
-                           more_char = more_char,
-                           just = just)
-      })
+    # measure width of print method output without last column
+    txt_printed = utils::capture.output( print(txt[-idx_last], row.names=T) )
+    len_first = tail(txt_printed, nrow(txt)) |> nchar() |> max()
 
-      # measure width of print method output without last column
-      txt_printed = utils::capture.output( print(txt[-idx_last], row.names=T) )
-      len_first = tail(txt_printed, nrow(txt)) |> nchar() |> max()
+    # set the max width for the last column
+    max_len_last = max_len - len_first - 2L
+    if(max_len_last < n_last_name ) max_len_last = max_len
 
-      # set the max width for the last column
-      max_len_last = max_len - len_first - 2L
-      if(max_len_last < n_last_name ) max_len_last = max_len
-
-      # truncate, return everything
-      txt[[idx_last]] = rswat_truncate_txt(txt[[idx_last]], max_len_last, NA_char, more_char)
-      return(txt)
-    }
+    # truncate, return everything
+    txt[[idx_last]] = rswat_truncate_txt(txt[[idx_last]], max_len_last, NA_char, more_char)
+    return(txt)
   }
 
   # clean up input text and set default max_len to longest string length
