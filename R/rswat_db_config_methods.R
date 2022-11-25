@@ -1,7 +1,4 @@
-#' Methods for opening and parsing SWAT+ config files
-#'
-#' These define further methods for an rswat_db reference class object, related
-#' to opening configuration files
+#' Methods for opening and parsing SWAT+ config, weather, and output files
 #'
 #' @include rswat_db.R
 #' @name rswat_db_config_methods
@@ -74,7 +71,9 @@ rswat_db$methods( list(
       get_config_tables(f, output=FALSE, refresh=refresh)
 
       # skipped for empty files
-      if( length(stor_df[[f]]) > 0 )
+      # DEBUGGING
+      if( TRUE )
+      #if( length(stor_df[[f]]) > 0 )
       {
         # set the 'loaded' flag in files metadata and directory list
         is_new = which(cio_df[['file']] == f)
@@ -119,45 +118,52 @@ rswat_db$methods( list(
 
     # count all available table number(s) then load tables in a loop
     table_num = line_df_temp[['table']] |> unique(na.rm=TRUE) |> sort()
-    stor_df[[f]] <<- lapply(table_num, \(tn) rswat_rtable_txt(line_df_temp, read_path, tn) )
+    stor_df[[f]] <<- lapply(table_num, \(tn) {
+      rswat_rtable_txt(line_df_temp, read_path, table_num=tn, quiet=TRUE)
+    })
 
-    # hacks for loading header-less tables from weather-wgn.cli and weather input files
+    # workarounds for header-less tables from weather-wgn.cli and weather input files
     if(f == 'weather-wgn.cli') table_num = fix_weather_gen()
     if('weather' == get_cio_df(what='type', f=f, drop=TRUE)) table_num = fix_weather_input(f)
 
-    # copy variable names from fread calls, in a loop over table numbers
-    for(tn in table_num)
-    {
-      # find relevant rows of temporary metadata list
-      is_table = line_df_temp[['table']] == tn
+    # workaround for loading output tables with missing/mismatched units row
+    if( 'output' == get_cio_df(what='type', f=f, drop=TRUE) ) { fix_output_table(f) } else {
 
-      # find mapping from parameters data frame to line_df based on field order and header spacing
-      nm_header = names(stor_df[[f]][[tn]])
-      n_col = line_df_temp[['field_num']][is_table] |> max() |> pmin(length(nm_header))
-      idx_col_j = lapply(seq(n_col), \(j) which(line_df_temp[['field_num']][is_table] == j))
+      # copy variable names from fread calls, in a loop over table numbers
+      for(tn in table_num)
+      {
+        # find relevant rows of temporary metadata list
+        is_table = line_df_temp[['table']] == tn
 
-      # assign variable 'name' (writes to both tabular and header entries)
-      header_j = lapply(seq(n_col), \(j) rep(nm_header[j], length(idx_col_j[[j]])) )
-      line_df_temp[['name']][is_table][ unlist(idx_col_j) ] <<- unlist(header_j)
+        # find mapping from parameters data frame to line_df based on field order and header spacing
+        nm_header = names(stor_df[[f]][[tn]])
+        n_col = line_df_temp[['field_num']][is_table] |> max() |> pmin(length(nm_header))
+        idx_col_j = lapply(seq(n_col), \(j) which(line_df_temp[['field_num']][is_table] == j))
 
-      # repeat for 'class' (writes to both tabular and header entries)
-      nm_class = unlist( lapply(stor_df[[f]][[tn]], class) )
-      class_j = lapply(seq(n_col), \(j) rep(nm_class[j], length(idx_col_j[[j]])) )
-      line_df_temp[['class']][is_table][ unlist(idx_col_j) ] <<- unlist(class_j)
+        # assign variable 'name' (writes to both tabular and header entries)
+        header_j = lapply(seq(n_col), \(j) rep(nm_header[j], length(idx_col_j[[j]])) )
+        line_df_temp[['name']][is_table][ unlist(idx_col_j) ] <<- unlist(header_j)
 
-      # find the known precision levels (based on first row of table)
-      nm_nprec = lapply(idx_col_j, \(j) {
+        # repeat for 'class' (writes to both tabular and header entries)
+        nm_class = unlist( lapply(stor_df[[f]][[tn]], class) )
+        class_j = lapply(seq(n_col), \(j) rep(nm_class[j], length(idx_col_j[[j]])) )
+        line_df_temp[['class']][is_table][ unlist(idx_col_j) ] <<- unlist(class_j)
 
-        # the ifelse handles cases where an entry is missing or the table has no rows
-        line_df_temp[['n_prec']][is_table][ifelse(length(j) > 1, j[2], NA) ]
-      })
+        # find the known precision levels (based on first row of table)
+        nm_nprec = lapply(idx_col_j, \(j) {
 
-      # copy precision info to headers
-      is_header = is_table & line_df_temp[['header']]
-      n_copy = min(sum(is_header), length(unlist(nm_nprec)))
-      line_df_temp[['n_prec']][is_header][seq(n_copy)] <<- unlist(nm_nprec)[seq(n_copy)]
+          # the ifelse handles cases where an entry is missing or the table has no rows
+          line_df_temp[['n_prec']][is_table][ifelse(length(j) > 1, j[2], NA) ]
+        })
+
+        # copy precision info to headers
+        is_header = is_table & line_df_temp[['header']]
+        n_copy = min(sum(is_header), length(unlist(nm_nprec)))
+        line_df_temp[['n_prec']][is_header][seq(n_copy)] <<- unlist(nm_nprec)[seq(n_copy)]
+      }
     }
 
+    # return the result from storage on request
     if(output) return(stor_df[[f]])
   },
 
@@ -168,12 +174,11 @@ rswat_db$methods( list(
     if(is.null(f)) return(rswat_scan_txt())
 
     # load plain text fields and build a data frame of info about them
-    line_df_temp <<- get_config_txt(f) |>
-      rswat_scan_txt(f) |>
-      rswat_ftable_txt()
+    type = get_cio_df(what='type', f=f, drop=TRUE)
+    line_df_temp <<- get_config_txt(f) |> rswat_scan_txt(f, type=type) |> rswat_ftable_txt()
 
     # if the data frame is empty (empty file), then we are done
-    if(nrow(line_df_temp) == 0) return(line_df_temp)
+    if(nrow(line_df_temp) == 0L) return(line_df_temp)
 
     # assign precision
     line_df_temp <<- rswat_n_prec_txt(line_df_temp, quiet=TRUE)
@@ -190,22 +195,25 @@ rswat_db$methods( list(
     # `f` must be listed in `cio_df`. Grab the file path from there
     msg_refresh = paste('file', f, 'not found. Try calling rswat() again to scan for new files')
     idx_cio = which( cio_df[['file']] == f )
-    if( length(idx_cio) == 0 ) stop(msg_refresh)
+    if( length(idx_cio) == 0L ) stop(msg_refresh)
     read_path = cio_df[['path']][idx_cio]
     if( is.na(read_path) ) stop(msg_refresh)
 
     # calculate the file hash and compare with previous (if any)
     new_hash = rlang::hash_file(read_path)
     old_hash = cio_df[['hash_load']][idx_cio]
-    if( length(old_hash) == 0 ) old_hash = NA
+    if( length(old_hash) == 0L ) old_hash = NA
     is_new = ifelse(is.na(old_hash), TRUE, new_hash==old_hash)
 
     # skip loading if cached data available and file hash has not changed
     if( !(f %in% names(txt)) | is_new )
     {
-      # set number of lines to read with -1 indicating all (weather, output loaded elsewhere)
-      is_weather = cio_df[['type']][idx_cio] == 'weather'
-      n_readLines = ifelse(is_weather, .rswat_gv_weather_line_num() - 1L, -1L)
+      # set number of lines to read with default -1 indicating all
+      n_readLines = -1L
+
+      # exceptions for weather and output headers (data is loaded elsewhere)
+      if( cio_df[['type']][idx_cio] == 'weather' ) n_readLines = .rswat_gv_line_num('weather') - 1L
+      if( cio_df[['type']][idx_cio] == 'output' ) n_readLines = .rswat_gv_line_num('output', f) - 1L
 
       # read line-by-line text from disk and update file properties
       txt[[f]] <<- readLines(read_path, n=n_readLines)
@@ -303,7 +311,7 @@ rswat_db$methods( list(
   # hack to present weather input data files as pairs of data frames
   fix_weather_input = function(f) {
 
-    # this writes table number 2 with weather variable data in third column
+    # this introduces a second table to hold weather data
     table_num = 2L
 
     # identify group for the file
@@ -323,7 +331,7 @@ rswat_db$methods( list(
                           tabular = TRUE,
                           skipped = FALSE,
                           n_prec = c(NA, NA, 5L),
-                          line_num = .rswat_gv_weather_line_num() )
+                          line_num = .rswat_gv_line_num('weather') )
 
     # temperature has two columns of data
     if(group == 'tmp')
@@ -337,10 +345,10 @@ rswat_db$methods( list(
     stor_df[[f]][[table_num]] <<- rswat_rtable_txt(line_df = df_start,
                                                    txt_path = read_path,
                                                    table_num = table_num,
-                                                   weather_data = TRUE)
+                                                   all_rows = TRUE)
 
     # find the final line number in the file
-    last_line_num = .rswat_gv_weather_line_num() + nrow( stor_df[[f]][[table_num]] ) - 1L
+    last_line_num = .rswat_gv_line_num('weather') + nrow( stor_df[[f]][[table_num]] ) - 1L
 
     # set names and replace NAs
     names(stor_df[[f]][[table_num]]) <<- df_start[['name']]
@@ -349,8 +357,78 @@ rswat_db$methods( list(
     # add rows to df_start to represent last row of data
     df_end = utils::modifyList(df_start, data.frame(line_num=last_line_num))
     line_df_temp <<- rbind(line_df_temp, df_start, df_end)
+    return(seq(2L))
+  },
 
-    return(seq(1L))
+  # hack to match headers, units, and data in output files
+  fix_output_table = function(f) {
+
+    # this replaces the existing table (which has header names only)
+    table_num = 1L
+    f_path = get_cio_df(what='path', f=f, drop=TRUE)
+    line_num_start = .rswat_gv_line_num('output', f)
+
+    # TODO: add group names?
+
+    # identify non-header lines that were accidentally scanned
+    is_header = split(line_df_temp[['class']], line_df_temp[['line_num']]) |>
+      sapply(\(x) all(x=='character'))
+
+    # copy the header rows and modify fields for rtable call below
+    line_num_min = min(line_df_temp[['line_num']])
+    df_header = line_df_temp[line_df_temp[['line_num']] == line_num_min, ]
+    df_start = df_header |>
+      utils::modifyList(list(header = FALSE,
+                             tabular = TRUE,
+                             class = 'numeric',
+                             line_num = line_num_start - sum(!is_header)))
+
+    # read the table starting from the first data row (quiet suppresses empty file warnings)
+    stor_df[[f]][[table_num]] <<- rswat_rtable_txt(line_df = df_start,
+                                                   txt_path = f_path,
+                                                   table_num = table_num,
+                                                   all_rows = TRUE,
+                                                   quiet = TRUE)
+
+    # find known column names, treating all but first of any set of duplicates as unknown
+    is_unnamed = nchar(df_start[['string']]) == 0L
+    is_duplicated = duplicated(df_start[['string']][!is_unnamed])
+    if( any(!is_unnamed) ) is_unnamed[ which(!is_unnamed)[is_duplicated] ] = TRUE
+
+    # return from empty file (headers only) case
+    if( nrow( stor_df[[f]][[table_num]] ) == 0L )
+    {
+      # copy names first
+      if( any(!is_unnamed) ) df_header[['name']][!is_unnamed] = df_start[['string']][!is_unnamed]
+      if( any(is_unnamed) ) df_header[['name']][is_unnamed] = paste0('V', which(is_unnamed))
+      line_df_temp <<- df_header
+
+      #TODO: write an empty data frame with the right column names in empty file case
+
+      stor_df[[f]][[table_num]] <<- data.frame()
+      return(invisible())
+    }
+
+    # find the final line number in the file
+    last_line_num = line_num_start - sum(!is_header) + nrow( stor_df[[f]][[table_num]] )
+    df_end = rbind(df_start, utils::modifyList(df_start, data.frame(line_num=last_line_num)))
+
+    # assign names and classes where they are missing
+    names(stor_df[[f]][[table_num]])[!is_unnamed] <<- df_start[['string']][!is_unnamed]
+    nm_class = unlist( lapply(stor_df[[f]][[table_num]], class) )
+    df_end[['name']] = names(stor_df[[f]][[table_num]])
+    df_end[['class']] = nm_class
+
+    # repair line_df_temp
+    df_header[['name']] = names(stor_df[[f]][[table_num]])
+    df_header[['class']] = nm_class
+    line_df_temp <<- rbind(df_header, df_end)
+
+
+    # TODO: replace NAs?
+    #stor_df[[f]][[table_num]][ stor_df[[f]][[table_num]] == .rswat_gv_weather_NA_val() ] <<- NA
+
+
   }
 
 ))
