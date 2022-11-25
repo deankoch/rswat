@@ -73,6 +73,10 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
     if( is.null(names(txt)[idx_last]) ) stop('last column of txt must be named')
     n_last_name = nchar( names(txt)[idx_last] )
 
+    # convert all factor columns to character
+    is_fac = sapply(txt, is.factor)
+    txt[is_fac] = lapply(txt[is_fac], as.character)
+
     # replace NA with character and add padding to all but last column
     txt[-idx_last] = replace(txt[-idx_last], is.na(txt[-idx_last]), NA_char)
     txt[, -idx_last] = apply(txt[, -idx_last, drop=FALSE], 2L, \(x) {
@@ -439,13 +443,28 @@ rswat_amatch = function(m)
 }
 
 
-# Initializes an empty dataframe with the specified names
+#' Initialize an empty data frame
+#'
+#' Helper function to initialize a data frame of the specified size with zero rows.
+#' If `nm` is a character vector, the function returns a data frame with `length(nm)`
+#' named columns. If `nm` is numeric, the data frame will have `nm` unnamed columns.
+#'
+#' All output columns are character class.
+#'
+#' @param nm integer or character vector, the length or column names
+#'
+#' @return data frame with zero rows
 rswat_empty_df = function(nm)
 {
+  # validity checks
+  if( anyNA(nm) ) stop('nm had NA value(s)')
+  if( length(nm) == 0 ) stop('nm was NULL or length 0')
+
   # for now this just sets everything to empty character class
-  if(is.character(nm)) matrix(nrow=0, ncol=length(nm)) |> data.frame() |> stats::setNames(nm)
-  if(is.numeric(nm)) matrix(nrow=0, ncol=round(nm)) |> data.frame()
-  stop('unrecognized input')
+  if(is.character(nm)) return( stats::setNames(data.frame(matrix(nrow=0, ncol=length(nm))), nm=nm) )
+  if(is.numeric(nm)) return( data.frame(matrix(nrow=0, ncol=round(head(nm,1)))) )
+
+  stop('nm had unexpected class (it should be character of numeric)')
 }
 
 
