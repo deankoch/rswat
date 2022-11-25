@@ -4,8 +4,7 @@
 #.rswat_ok_char = function() c(yes='\U25B7', fail='\U25C9', no='\U25B6', sub='\U25B9')
 .rswat_ok_char = function() c(yes='\U25C7', fail='\U25C8', no='\U25C6', sub='\U25B9')
 
-# line number of the first data row in the weather input files, and the number used for NA
-.rswat_gv_weather_line_num = function() 4L
+# this number is used to denote NA in the weather input files
 .rswat_gv_weather_NA_val = function() -99
 
 # regex strings to use for organizing SWAT+ files into groups (called in rswat_scan_dir)
@@ -89,3 +88,20 @@
 
 # variables names to omit from documentation search in rswat_match_docs
 .rswat_gv_nm_nomatch = function() c('plantnm', 'name', 'id', 'description')
+
+# adjustments +/- to the line numbers defined next
+.rswat_gv_line_num_adj = function(f, skip) switch(f,
+
+  'crop_yld_aa.txt' = ifelse(skip, 3L, 2L),
+  'lu_change_out.txt' = ifelse(skip, 0L, -1L),
+  0L
+)
+
+# line number of first data row (skip=F), or the number of lines to ignore at the start
+.rswat_gv_line_num = function(type, f='', skip=FALSE) switch(type,
+
+   weather = ifelse(skip, 1L, 4L),
+   output = ifelse(skip, 1L, 4L) + .rswat_gv_line_num_adj(f, skip),
+   ifelse(skip, 1L, 3L)
+)
+
