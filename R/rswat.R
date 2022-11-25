@@ -43,15 +43,17 @@ rswat = function(swat_dir = NULL,
   is_assigned = !is.na(old_swat_dir)
   if(!is_assigned)
   {
+    msg_assigned = 'Project directory has not been assigned. Try rswat(swat_dir)'
     if( is.null(swat_dir) )
     {
       # message if rswat called before project directory is specified
-      message('Project directory has not been assigned. Try rswat(swat_dir)')
+      message(msg_assigned)
       return(invisible())
     }
 
     # on first assignment
     old_swat_dir = rswat_validate_dpath(swat_dir, 'swat_dir')
+    if( is.na(old_swat_dir) ) stop(msg_assigned)
   }
 
   # assign the project path and executable path (optional)
@@ -120,15 +122,31 @@ rswat = function(swat_dir = NULL,
 
 #' Return a data frame of information about SWAT+ files
 #'
-#' TODO: details here
+#' If `pattern` is the name of a file in the SWAT+ project directory, the function
+#' returns a one-row data frame with information about the file. If `pattern` is `NA`,
+#' information on all files is returned. Otherwise all matches of `pattern` against
+#' 'group' and 'type' are returned.
 #'
-#' `f` filters rows by specifying file name(s) (default `NULL` selects all),
+#' `loaded` and `known` have no effect when set to `NA`, or when `pattern` is a file
+#' name. Otherwise they control the subset of results to return. `loaded=TRUE`
+#' restricts to files loaded already, and `loaded=FALSE` restricts to those not loaded.
+#' `known=TRUE` restricts results to file types known to `rswat` (based on file name
+#' and extension) and `known=FALSE` returns only unrecognized files.
 #'
-#' @param what character vector, the column(s) to select
-#' @param f character vector, the file name(s) to select
+#' `what` controls which columns to return. Call `.rswat_gv_cio_show()` to see the
+#' defaults, or `names(rswat_files(what=NULL))` to see all options.
+#'
+#' By default at most `n_max=15` rows are printed for tidiness, but the entire set of
+#' results is returned invisibly. Set `quiet=TRUE` to print nothing.
+#'
+#' @param pattern character, the file name, group, or type of file
 #' @param type character, one of 'config' (the default)...
-#' @param include character, one of 'loaded', 'cio', 'known', 'all'
-#' @param refresh logical, indicates to re-scan the directory
+#' @param what character vector, the column(s) to select
+#' @param loaded logical, indicates to only search among loaded files
+#' @param known logical, indicates to only search among recognized files
+#' @param n_max integer, the maximum number of results to print
+#' @param quiet logical, suppresses console output
+#' @param refresh logical, indicates to first re-scan the directory
 #' @param .db rswat_db object, for internal use
 #'
 #' @return the requested data frame or vector, a subset of `cio`
@@ -141,7 +159,6 @@ rswat_files = function(pattern = NA,
                        what = .rswat_gv_cio_show(),
                        quiet = FALSE,
                        n_max = 15L,
-                       sort_by = 'standard',
                        refresh = TRUE,
                        .db = .rswat_db)
 {
@@ -150,28 +167,28 @@ rswat_files = function(pattern = NA,
 
   # copy requested subset of files data frame
   files_df = .db$get_cio_df()
-  msg_extra = NULL
-  if(sort_by == 'time_load')
-  {
-    # NAs get put at the end in this ordering
-    files_df = files_df[order(files_df[['time_load']], decreasing=TRUE), ]
-    msg_extra = '(sorted by load order)'
-  }
 
-  # build an index of results to exclude
-  is_omitted = logical( nrow(files_df) )
-  if( !is.na(loaded) ) is_omitted = is_omitted | ( files_df[['loaded']] != loaded )
-  if( !is.na(known) ) is_omitted = is_omitted | ( files_df[['known']] != known )
-  if( !is.na(pattern) )
-  {
-    is_match = apply(files_df[c('group', 'type')], 1L, \(x) any(x == pattern))
-    is_omitted = is_omitted | !is_match
-  }
+  # check for matches against file names and return them
+  is_exact = files_df[['file']] %in% pattern
+  if( any(is_exact) ) { is_omitted = !is_exact } else {
 
-  # handle files with NA group or type
-  is_omitted[ is.na(is_omitted) ] = TRUE
+    # no exact matches - build an index of results to exclude
+    is_omitted = logical( nrow(files_df) )
+    if( !is.na(loaded) ) is_omitted = is_omitted | ( files_df[['loaded']] != loaded )
+    if( !is.na(known) ) is_omitted = is_omitted | ( files_df[['known']] != known )
+    if( !is.na(pattern) )
+    {
+      # look for matches
+      is_match = apply(files_df[c('group', 'type')], 1L, \(x) any(x == pattern))
+      is_omitted = is_omitted | !is_match
+    }
+
+    # handle files with NA group or type
+    is_omitted[ is.na(is_omitted) ] = TRUE
+  }
 
   # subset of results to return invisibly later
+  if( is.null(what) ) what = seq_along(files_df)
   files_df = files_df[!is_omitted, what, drop=FALSE]
   row.names(files_df) = NULL
 
@@ -198,7 +215,7 @@ rswat_files = function(pattern = NA,
       # report on trimmed rows
       msg_report = paste0(n_included, msg_known, msg_pattern, ' file(s)', msg_load)
       message(msg_report)
-      if(is_clipped) message(paste('showing the first',  n_show, msg_extra))
+      if(is_clipped) message(paste0('showing the first ',  n_show, ':'))
 
       # print messages, then the data frame
       cat('\n')
