@@ -43,7 +43,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   cio_new = data.frame(file=list.files(swat_dir)) |>
     dplyr::mutate( known = FALSE ) |>
     dplyr::mutate( loaded = FALSE ) |>
-    dplyr::mutate( type = NA_character_ ) |>
+    dplyr::mutate( type = 'unknown' ) |>
     dplyr::mutate( path = file.path(swat_dir, file) ) |>
     dplyr::anti_join( cio_df, by=c('file') ) |>
     dplyr::full_join( cio_df, by=c('file', 'known', 'loaded', 'type', 'path') ) |>
@@ -58,7 +58,11 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   type_lu = .rswat_gv_type_lu()
   type_match = lapply(type_lu[['pattern']], \(s) which(grepl(s, cio_new[['file']])) )
   for( j in seq(nrow(type_lu)) ) cio_new[['type']][ type_match[[j]] ] = type_lu[['type']][j]
-  cio_new[['known']] = !is.na(cio_new[['type']])
+  #cio_new[['known']] = !is.na(cio_new[['type']])
+  cio_new[['known']] = cio_new[['type']] != 'unknown'
+
+  # TODO: test this
+  #cio_new[['type']][ cio_new[['type']] ] = 'unknown'
 
   # groups for weather files
   is_weather = cio_new[['type']] %in% 'weather'
@@ -110,16 +114,18 @@ rswat_scan_txt = function(txt=NULL, f=NULL, type='config', delim='\\s+')
 
   # return this data frame in default calls without arguments (or whenever txt is NULL)
   n_txt = length(txt)
-  if(n_txt == 0) return(line_df)
+  if(n_txt == 0L) return(line_df)
 
-  # set the number of lines to skip and return empty data frame when there is no txt data to parse
+  # set the number of lines to skip and check for all skipped case
   n_skip = .rswat_gv_line_num(type, f, skip=TRUE)
-  if( min(n_txt, n_txt-n_skip) <= 0 ) return(line_df)
+  if( min(n_txt, n_txt-n_skip) <= 0L ) return(line_df)
+  not_skipped = if(n_skip==0L) seq_along(txt) else -seq(n_skip)
 
   # strip comment then split into white space delimited fields to get columns
-  txt_wsr = txt[-seq(n_skip)] |> trimws() |> strsplit(split=delim)
+  txt_wsr = txt[not_skipped] |> trimws() |> strsplit(split=delim)
   txt_cnum = lapply(txt_wsr, seq_along)
-  txt_ln = Map(\(x, y) rep(x, length(y)), x=n_skip+seq(n_txt-1L), y=txt_cnum)
+  line_num_add = if(n_txt > 1L) seq(n_txt-1L) else 0L
+  txt_ln = Map(\(x, y) rep(x, length(y)), x=n_skip+line_num_add, y=txt_cnum)
 
   # bundle everything into a data frame, adding back unassigned columns from template
   nm_join = c('string', 'line_num', 'field_num')
@@ -227,7 +233,7 @@ rswat_ftable_txt = function(line_df)
       n_fields_byblock = lapply(ln_block, \(ln) n_byln[ln_unique %in% ln])
 
       # by block, assign table numbers
-      table_num_byblock = Map(\(i, nf) rep(i, sum(nf)),  nf=n_fields_byblock, i=seq(n_block))
+      table_num_byblock = Map(\(i, nf) rep(i, sum(nf)), nf=n_fields_byblock, i=seq(n_block))
       line_df[['table']][ !line_df[['skipped']] ] = unlist(table_num_byblock)
     }
   }
@@ -282,7 +288,7 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, all_rows=FALSE, q
 
   # find index for this table in line_df and copy the required subset
   is_row_requested = !is.na(table_num_vec) & (table_num_vec == table_num)
-  nm_needed = c('header', 'skipped', 'line_num', 'field_num', 'class', 'table')
+  nm_needed = c('string', 'header', 'skipped', 'line_num', 'field_num', 'class', 'table')
   line_df_sub = line_df[is_row_requested, nm_needed]
 
   # identify the line numbers to load
@@ -296,11 +302,15 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, all_rows=FALSE, q
   # expected number of fields to load (prevents bugs with unnamed final columns)
   n_field = max(line_df_sub[['field_num']])
 
+  # copy headers (if any) to assign to empty data frame case
+  nm_empty = n_field
+  if(has_headers) nm_empty = line_df_sub[['string']][ line_df_sub[['header']] ]
+
   # load as data frame, copying error messages as attribute
   df_out = tryCatch({
 
     # error on empty config files
-    if( nrow_load == 0L ) stop('0 rows requested')
+    if( nrow_load == 0L ) return(rswat_empty_df(nm_empty))
 
     # check for unexpectedly empty files when attempting to read all
     if( is.infinite(nrow_load) )
@@ -313,7 +323,7 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, all_rows=FALSE, q
                                               fill = TRUE))
 
       # in this case skip would equal length of file, causing an error
-      if(is_empty) stop('requested table had 0 data rows')
+      if(is_empty) return(rswat_empty_df(nm_empty))
     }
 
     # load all requested table lines with fread

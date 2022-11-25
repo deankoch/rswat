@@ -164,8 +164,8 @@ rswat_db = setRefClass('rswat_db',
     is_file_loaded = function(f=NULL, check_dir=TRUE) {
 
       files_loaded = get_loaded_files(check_dir=check_dir)
-      if( length(files_loaded) == 0 ) return(FALSE)
       if( length(f) == 0 ) return(FALSE)
+      if( length(files_loaded) == 0 ) return( stats::setNames(rep(FALSE, length(f)), nm=f) )
       return( stats::setNames(f %in% files_loaded, nm=f) )
     },
 

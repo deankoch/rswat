@@ -11,12 +11,14 @@
 .rswat_gv_type_lu = function() {
 
   rbind(c('file\\.cio', 'config'),
+        c('object\\.prt', 'config'),
         c('\\.pcp','weather'),
         c('\\.tmp','weather'),
         c('\\.wnd','weather'),
         c('\\.hmd','weather'),
         c('\\.slr','weather'),
         c('\\.txt', 'output'),
+        c('\\.ohg', 'output'),
         c('_warnings','log'),
         c('\\.fin','log'),
         c('\\.out','log'),
@@ -89,13 +91,23 @@
 # variables names to omit from documentation search in rswat_match_docs
 .rswat_gv_nm_nomatch = function() c('plantnm', 'name', 'id', 'description')
 
-# adjustments +/- to the line numbers defined next
-.rswat_gv_line_num_adj = function(f, skip) switch(f,
 
-  'crop_yld_aa.txt' = ifelse(skip, 3L, 2L),
-  'lu_change_out.txt' = ifelse(skip, 0L, -1L),
-  0L
-)
+# .rswat_gv_line_num_adj = function(f, skip) {
+#
+#   if(f == 'crop_yld_aa.txt') return(ifelse(skip, 3L, 2L))
+#   if(f == 'lu_change_out.txt') return(ifelse(skip, 0L, -1L))
+#   if( endsWith(tolower(f), '.ohg') ) return(ifelse(skip, -1L, -2L))
+#   return(0L)
+# }
+
+
+# # adjustments (+/-) to the line numbers defined next
+# .rswat_gv_line_num_adj = function(f, skip) { switch(f,
+# 'crop_yld_aa.txt' = ifelse(skip, 3L, 2L),
+# 'lu_change_out.txt' = ifelse(skip, 0L, -1L),
+# 0L)
+# }
+
 
 # line number of first data row (skip=F), or the number of lines to ignore at the start
 .rswat_gv_line_num = function(type, f='', skip=FALSE) switch(type,
@@ -104,4 +116,13 @@
    output = ifelse(skip, 1L, 4L) + .rswat_gv_line_num_adj(f, skip),
    ifelse(skip, 1L, 3L)
 )
+
+# adjustments (+/-) to the line numbers defined above
+.rswat_gv_line_num_adj = function(f, skip) {
+
+  if( endsWith(f, '.ohg') ) return( ifelse(skip, -1L, -2L) )
+  if( f == 'crop_yld_aa.txt' ) return( ifelse(skip, 3L, 2L) )
+  if( f == 'lu_change_out.txt' ) return( ifelse(skip, 0L, -1L) )
+  return(0L)
+}
 
