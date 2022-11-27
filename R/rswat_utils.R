@@ -1,3 +1,28 @@
+
+#' Initialize an empty data frame
+#'
+#' Helper function to initialize a data frame of the specified size with zero rows.
+#' If `nm` is a character vector, the function returns a data frame with `length(nm)`
+#' named columns. If `nm` is numeric, the data frame will have `nm` unnamed columns.
+#'
+#' All output columns are character class.
+#'
+#' @param nm integer or character vector, the length or column names
+#'
+#' @return data frame with zero rows
+rswat_empty_df = function(nm) {
+
+  # validity checks
+  if( anyNA(nm) ) stop('nm had NA value(s)')
+  if( length(nm) == 0 ) stop('nm was NULL or length 0')
+
+  # for now this just sets everything to empty character class
+  if(is.character(nm)) return( stats::setNames(data.frame(matrix(nrow=0, ncol=length(nm))), nm=nm) )
+  if(is.numeric(nm)) return( data.frame(matrix(nrow=0, ncol=round(head(nm,1)))) )
+
+  stop('nm had unexpected class (it should be character of numeric)')
+}
+
 #' Validity check for a directory
 #'
 #' Helper function to check if a directory string points to an existing location.
@@ -60,8 +85,8 @@ rswat_validate_fpath = function(p, extension=NA, p_name='p') {
 #'
 #' @return character vector or data frame (the same length as `txt`)
 #' @export
-rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', just='left')
-{
+rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', just='left') {
+
   # handle data frames
   if( is.data.frame(txt) )
   {
@@ -156,7 +181,7 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
 #' date_as_df = data.frame(do.call(rbind, date_as_int))
 #' all.equal(date_result, rswat_date_conversion(date_as_df))
 #'
-rswat_date_conversion = function(d) {
+rswat_date_conversion = function(d, NA_zeros=TRUE) {
 
   # handle non-date inputs
   if( !is(d, 'Date') )
@@ -175,10 +200,19 @@ rswat_date_conversion = function(d) {
                                  name_split = FALSE,
                                  div_penalty = 0)
 
-    # identify any extra columns to return and rename the year/date
+    # identify any extra columns to return, and rename the year/date
     is_mapped = !is.na(nm_match[['alias']])
     nm_extra = nm_d[!is_mapped]
     names(d) = c(nm_match[['alias']][is_mapped], nm_extra)
+
+    # deal with zeros as shorthand for first and last days of the year
+    if(!NA_zeros)
+    {
+      # this finds the last Julian day of the end year
+      last_date = rswat_date_conversion(data.frame(jday=1L, year=1L+d['end', 'year'])) - 1L
+      if(d['start', 'jday'] == 0) d['start', 'jday'] = 1L
+      if(d['end', 'jday'] == 0) d['end', 'jday'] = format(last_date, '%j')[[1L]]
+    }
 
     # convert to Date via string
     d_as_date = d[nm_expect] |>
@@ -261,8 +295,8 @@ rswat_string_dist = function(pattern, lu,
                              lu_split = FALSE,
                              pattern_split = FALSE,
                              split_c = 1e-6,
-                             costs = .rswat_gv_costs())
-{
+                             costs = .rswat_gv_costs()) {
+
   # loop for 2+ patterns
   if( length(pattern) > 1 )
   {
@@ -404,8 +438,8 @@ rswat_string_dist = function(pattern, lu,
 #'
 #' @return a length-`ncol(m)` integer vector mapping labels or `NA`
 #' @export
-rswat_amatch = function(m)
-{
+rswat_amatch = function(m) {
+
   # build a matrix of vectorization indices
   n_label = nrow(m)
   m_i = matrix(seq_along(m), n_label)
@@ -440,31 +474,6 @@ rswat_amatch = function(m)
   out_vec[ ij[,'j'] ] = ij[,'i']
   names(out_vec) = colnames(m)
   return(out_vec)
-}
-
-
-#' Initialize an empty data frame
-#'
-#' Helper function to initialize a data frame of the specified size with zero rows.
-#' If `nm` is a character vector, the function returns a data frame with `length(nm)`
-#' named columns. If `nm` is numeric, the data frame will have `nm` unnamed columns.
-#'
-#' All output columns are character class.
-#'
-#' @param nm integer or character vector, the length or column names
-#'
-#' @return data frame with zero rows
-rswat_empty_df = function(nm)
-{
-  # validity checks
-  if( anyNA(nm) ) stop('nm had NA value(s)')
-  if( length(nm) == 0 ) stop('nm was NULL or length 0')
-
-  # for now this just sets everything to empty character class
-  if(is.character(nm)) return( stats::setNames(data.frame(matrix(nrow=0, ncol=length(nm))), nm=nm) )
-  if(is.numeric(nm)) return( data.frame(matrix(nrow=0, ncol=round(head(nm,1)))) )
-
-  stop('nm had unexpected class (it should be character of numeric)')
 }
 
 

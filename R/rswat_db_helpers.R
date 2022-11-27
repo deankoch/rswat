@@ -10,8 +10,11 @@
 #'
 #' @return nothing
 #' @export
-rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db)
-{
+rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
+
+  # message in case non-existent files listed in file.cio
+  unknown_msg = NULL
+
   # matrix of categories and headers for printout
   show_mat = list(dir = c('directory:', 'not assigned'),
                   exe = c('simulator:', 'not assigned'),
@@ -54,7 +57,7 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db)
     # create the file.cio message
     swat_msg['cio'] = ok_char['yes'] |>
       paste( rswat_truncate_txt(show_mat['cio', 'txt'], n_head, just='right') ) |>
-      paste('reports', .db$report_known_files(), '\n')
+      paste('lists', .db$report_known_files(), '\n')
 
     # create two time period messages
     nm_check = c('time', 'print')
@@ -64,8 +67,13 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db)
       f = f_check[nm]
       if( is_loaded[f] )
       {
+        # get the time period messages
+        msg_time = rswat_sim_dates(lazy = FALSE,
+                                   prt = nm == 'print',
+                                   render = TRUE,
+                                   .db = .db)
+
         # validity check
-        msg_time = .db$get_sim_dates(prt=(nm=='print'), render=TRUE)
         msg_invalid = paste0('invalid dates! Check them with rswat_open("', f, '")')
         if( anyNA(msg_time) )
         {
@@ -80,6 +88,13 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db)
           swat_msg[nm] = ok_char['yes'] |>
             paste( rswat_truncate_txt(show_mat[nm, 'txt'], n_head, just='right') ) |>
             paste(msg_time)
+
+          # append four more lines to denote output file groups
+          if(nm == 'print') swat_msg[nm] = swat_msg[nm] |>
+              paste0('\n', rswat_report_outputs(lazy = FALSE,
+                                                n_head = n_head,
+                                                ok_char = ok_char,
+                                                .db = .db))
         }
       }
     }
@@ -93,23 +108,31 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db)
         paste(rswat_weather_report(lazy=FALSE, n_head=n_head, quiet=TRUE, .db=.db))
 
     }
+
+    # create a message about non-existent files
+    df_unknown = .db$get_cio_df(what=c('file', 'type', 'exists')) |> dplyr::filter(!exists)
+    if( nrow(df_unknown) > 0 )  unknown_msg = 'file(s) listed but not found on disk:' |>
+      paste(paste(df_unknown[['file']], collapse = ', '))
   }
 
   # line break string to separate categories
   hbreak_msg = paste(c(rep(' ', 2L), rep('-', n_head)), collapse='')
 
+  # print paths
   message('rswat')
   message(hbreak_msg)
   cat(paste0(swat_msg['dir'], '\n', swat_msg['exe'], '\n'))
   message(hbreak_msg)
 
+  # print weather and simulation dates info
   cat(swat_msg['climate'], '\n')
   message(hbreak_msg)
   cat(paste0(swat_msg['time'], '\n', swat_msg['print'], '\n'))
   message(hbreak_msg)
 
+  # print file.cio info
   cat(swat_msg['cio'], '\n')
-
+  if( !is.null(unknown_msg) ) message(unknown_msg)
   return(invisible())
 }
 
@@ -128,8 +151,8 @@ rswat_weather_report = function(lazy = TRUE,
                                 n_head = 10L,
                                 quiet = FALSE,
                                 ok_char = .rswat_ok_char(),
-                                .db = .rswat_db)
-{
+                                .db = .rswat_db) {
+
   # halt if the file is not available
   f_sta = 'weather-sta.cli'
   if( !.db$is_file_loaded(f_sta) )
@@ -138,6 +161,7 @@ rswat_weather_report = function(lazy = TRUE,
     if(lazy) rswat(include=f_sta, quiet=TRUE, .db=.db)
     if( !.db$is_file_loaded(f_sta) ) stop(paste(f_sta, 'not loaded'))
   }
+
   # prefix for sub-headings
   sub_nm = c('wgn', 'sta')
   msg_sub_prefix = paste(ok_char['sub'], paste0(sub_nm, ':')) |>
@@ -177,11 +201,11 @@ rswat_weather_report = function(lazy = TRUE,
   } else {
 
     # build message about full date range
-    dates_range = dates_df[, is_loaded_station] |> as.matrix() |> range()
+    dates_range = dates_df[, is_loaded_station, drop=FALSE] |> as.matrix() |> range()
     msg_period = paste0('[', paste(dates_range, collapse=' to '), ']')
 
     # identify variables spanning full date range
-    is_full = apply(dates_df[, is_loaded_station] == dates_range, 2L, all)
+    is_full = apply(dates_df[, is_loaded_station, drop=FALSE] == dates_range, 2L, all)
 
     # message about variables spanning subset of full range
     msg_v_partial = paste(v_nm[is_loaded_station][!is_full], collapse=', ')
@@ -199,9 +223,7 @@ rswat_weather_report = function(lazy = TRUE,
   msg_out = paste(c(msg_weather, msg_simulated, msg_observed), collapse='\n')
   if(!quiet) cat(msg_out)
   return(invisible(msg_out))
-
 }
-
 
 
 #
@@ -214,14 +236,14 @@ rswat_weather_report = function(lazy = TRUE,
 #'
 #' @return returns a data frame of start end dates
 #' @export
-rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db)
-{
+rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db) {
+
   f_sta = 'weather-sta.cli'
   if( !.db$is_file_loaded(f_sta) ) stop(paste(f_sta, 'not loaded'))
 
   # load and clean the table
   sta_files = .db$get_stor_df(f_sta)[[1L]]
-  sta_files = sta_files[ !( names(sta_files) %in% c('name', 'wgn', 'wnd_dir', 'atmo_dep') ) ]
+  sta_files = sta_files[!( names(sta_files) %in% c('name', 'wgn', 'wnd_dir', 'atmo_dep') )]
   is_simulated = sta_files == 'sim'
 
   # check if files along each column have been loaded
@@ -242,7 +264,7 @@ rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db)
       # identify empty weather files that will be covered by the weather generator
       f = sta_files[, nm, drop=FALSE]
       is_sim = f == 'sim'
-      msg_count = paste0(sum(!is_sim), ' stations')
+      msg_count = paste0(sum(!is_sim), ' station(s)')
 
       if(all(is_sim))
       {
@@ -278,13 +300,96 @@ rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db)
         out_dates[[nm]] = dates_range
       }
     }
-
-    dates_df = data.frame(out_dates)
-    row.names(dates_df) = c('start', 'end')
   }
+
+  dates_df = data.frame(out_dates)
+  row.names(dates_df) = c('start', 'end')
 
   # omit columns for file groups not loaded
   return(dates_df)
 }
+
+
+#' Get the start/end dates for a simulation, or for the printed output files
+#'
+#' work in progress
+#'
+#' @param lazy logical, indicates to load time.sim and/or print.prt as needed
+#' @param prt logical, if TRUE the function fetches info from time.sim (else from print.prt)
+#' @param render logical, indicates to return a string instead of data frame
+#' @param .db rswat_db object reference, for internal use
+#'
+#' @return data frame of dates or string reporting the dates
+#' @export
+rswat_sim_dates = function(lazy=TRUE, prt=FALSE, render=TRUE, .db=.rswat_db) {
+
+  # load check then open the file contents (first table)
+  f = ifelse(prt, 'print.prt', 'time.sim')
+  if( !lazy & !.db$is_file_loaded(f) ) return( data.frame(date=as.Date(integer(0L))) )
+  time_file = .db$open_config_file(f)[[1L]]
+
+  # extract integer representation of dates
+  dates_as_int = rbind(start = c(jday=time_file[['day_start']],
+                                 year=time_file[['yrc_start']]),
+                       end = c(jday=time_file[['day_end']],
+                               year=time_file[['yrc_end']]))
+
+  # deal with zero years
+  is_year_zero = dates_as_int[,'year'] == 0L
+  if( any(is_year_zero) )
+  {
+    # zero years in time.sim are invalid
+    if(!prt) { dates = NA } else {
+
+      # zeros are shorthand for "same as time.sim" in this case
+      year_sim = rswat_sim_dates(lazy=lazy, prt=FALSE, render=FALSE, .db=.db)[['date']] |> format('%Y')
+      dates_as_int[is_year_zero, 'year'] = as.integer(year_sim[is_year_zero])
+    }
+  }
+
+  # if render=FALSE, return Dates in data frame with two rows
+  dates = rswat_date_conversion(dates_as_int, NA_zeros=FALSE)
+  if(!render) return(dates)
+  if( anyNA(dates) ) return(NA_character_)
+  dates_msg = paste0('[', paste(dates[['date']], collapse=' to '), ']')
+  return(dates_msg)
+}
+
+# reports on the table of output files in print.prt
+rswat_report_outputs = function(lazy=TRUE, n_head=10L, ok_char=.rswat_ok_char(), .db=.rswat_db)
+{
+  # return empty character when print.prt not loaded and lazy=FALSE
+  f = 'print.prt'
+  if( !lazy & !.db$is_file_loaded(f) ) return(chracter(0))
+
+  # open the print.prt table and modify if daily printing disabled
+  print_prt = .db$open_config_file('print.prt')
+  outputs_table = print_prt[[5L]]
+  if( any(print_prt[[1]][c('day_start', 'day_end')] == 0) ) outputs_table['daily'] = FALSE
+
+  # count all active file categories
+  outputs_by_step = outputs_table[-1L] |> lapply(\(i) outputs_table[[1L]][ which(i) ])
+  outputs_n = sapply(outputs_by_step, length)
+
+  # build strings reporting the first two files in each category (at most)
+  outputs_first = sapply(outputs_by_step, \(x) head(x, 1L))
+  outputs_first_two = sapply(outputs_by_step, \(x) paste(head(x, 2L), collapse=', '))
+  outputs_more = paste0(outputs_first_two, '... (and ', outputs_n-2L, ' others)')
+
+  # build output message by picking the simplest of these for each category
+  outputs_msg = outputs_more |> stats::setNames(nm=names(outputs_n))
+  outputs_msg[ outputs_n == 2L ] = outputs_first_two[ outputs_n == 2L ]
+  outputs_msg[ outputs_n == 1L ] = outputs_first[ outputs_n == 1L ]
+  outputs_msg[ outputs_n == 0L ] = 'none'
+  outputs_msg[ outputs_n == nrow(outputs_table) ] = 'all'
+
+  # build output string with one line per category
+  outputs_msg_list = paste(ok_char['sub'], paste0(names(outputs_msg), ':')) |>
+    rswat_truncate_txt(n_head + 2L, just='right') |>
+    paste(outputs_msg)
+  return(paste(outputs_msg_list, collapse='\n'))
+}
+
+
 
 

@@ -32,6 +32,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
                         n_skip = integer(0), # number of lines skipped in parsing the file
                         msg = character(0), # the first line of the file (a comment)
                         path = character(0), # the absolute path to the file
+                        error = logical(0), # indicates that a load attempt failed
                         time_load = .POSIXct(integer(0)), # the Sys.time() when file was loaded
                         hash_load = character(0)) # the file hash at the time of loading
   }
@@ -43,10 +44,11 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   cio_new = data.frame(file=list.files(swat_dir)) |>
     dplyr::mutate( known = FALSE ) |>
     dplyr::mutate( loaded = FALSE ) |>
+    dplyr::mutate( error = FALSE ) |>
     dplyr::mutate( type = 'unknown' ) |>
     dplyr::mutate( path = file.path(swat_dir, file) ) |>
     dplyr::anti_join( cio_df, by=c('file') ) |>
-    dplyr::full_join( cio_df, by=c('file', 'known', 'loaded', 'type', 'path') ) |>
+    dplyr::full_join( cio_df, by=c('file', 'known', 'loaded', 'error', 'type', 'path') ) |>
     dplyr::mutate( exists = file.exists(path) )
 
   # add the size and time modified for each file on disk
@@ -58,11 +60,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   type_lu = .rswat_gv_type_lu()
   type_match = lapply(type_lu[['pattern']], \(s) which(grepl(s, cio_new[['file']])) )
   for( j in seq(nrow(type_lu)) ) cio_new[['type']][ type_match[[j]] ] = type_lu[['type']][j]
-  #cio_new[['known']] = !is.na(cio_new[['type']])
   cio_new[['known']] = cio_new[['type']] != 'unknown'
-
-  # TODO: test this
-  #cio_new[['type']][ cio_new[['type']] ] = 'unknown'
 
   # groups for weather files
   is_weather = cio_new[['type']] %in% 'weather'
@@ -326,12 +324,12 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, all_rows=FALSE, q
       if(is_empty) return(rswat_empty_df(nm_empty))
     }
 
-    # load all requested table lines with fread
+    # load all requested table lines with fread (returns a tibble)
     data.table::fread(input = txt_path,
                       skip = ln_start-1L,
                       select = seq(n_field),
                       nrows = nrow_load,
-                      fill = TRUE) |> as.data.frame()
+                      fill = TRUE) |> data.frame()
 
   }, error = function(err) err) |> suppressWarnings()
 

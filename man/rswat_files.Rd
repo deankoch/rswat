@@ -6,20 +6,18 @@
 \usage{
 rswat_files(
   pattern = NA,
-  type = NA,
   loaded = NA,
-  known = TRUE,
-  what = .rswat_gv_cio_show(),
-  quiet = FALSE,
-  n_max = 15L,
+  known = NA,
+  what = NULL,
+  n = NULL,
   refresh = TRUE,
+  summarize = "file",
+  quiet = FALSE,
   .db = .rswat_db
 )
 }
 \arguments{
 \item{pattern}{character, the file name, group, or type of file}
-
-\item{type}{character, one of 'config' (the default)...}
 
 \item{loaded}{logical, indicates to only search among loaded files}
 
@@ -27,13 +25,15 @@ rswat_files(
 
 \item{what}{character vector, the column(s) to select}
 
-\item{quiet}{logical, suppresses console output}
-
-\item{n_max}{integer, the maximum number of results to print}
+\item{n}{integer, the maximum number of results to print}
 
 \item{refresh}{logical, indicates to first re-scan the directory}
 
+\item{quiet}{logical, suppresses console output}
+
 \item{.db}{rswat_db object, for internal use}
+
+\item{type}{character, one of 'config' (the default)...}
 }
 \value{
 the requested data frame or vector, a subset of \code{cio}
@@ -54,6 +54,6 @@ and extension) and \code{known=FALSE} returns only unrecognized files.
 \code{what} controls which columns to return. Call \code{.rswat_gv_cio_show()} to see the
 defaults, or \code{names(rswat_files(what=NULL))} to see all options.
 
-By default at most \code{n_max=15} rows are printed for tidiness, but the entire set of
+By default at most \code{n=15} rows are printed for tidiness, but the entire set of
 results is returned invisibly. Set \code{quiet=TRUE} to print nothing.
 }

@@ -12,6 +12,11 @@
 
   rbind(c('file\\.cio', 'config'),
         c('object\\.prt', 'config'),
+        c('\\.input', 'gwflow'),
+        c('\\.rivcells', 'gwflow'),
+        c('\\.hrucell','gwflow'),
+        c('\\.cellhru','gwflow'),
+        c('gwflow[[:punct:]]', 'gwflow'),
         c('\\.pcp','weather'),
         c('\\.tmp','weather'),
         c('\\.wnd','weather'),
@@ -21,12 +26,7 @@
         c('\\.ohg', 'output'),
         c('_warnings','log'),
         c('\\.fin','log'),
-        c('\\.out','log'),
-        c('\\.input', 'gwflow'),
-        c('\\.rivcells', 'gwflow'),
-        c('\\.hrucell','gwflow'),
-        c('\\.cellhru','gwflow'),
-        c('gwflow[[:punct:]]', 'gwflow')) |> as.data.frame() |> stats::setNames(c('pattern', 'type'))
+        c('\\.out','log')) |> as.data.frame() |> stats::setNames(c('pattern', 'type'))
 }
 
 # config files using "y" and "n" to represent logical (called in rswat_scan_txt, rswat_rtable_txt)

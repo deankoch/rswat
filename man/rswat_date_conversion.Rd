@@ -4,7 +4,7 @@
 \alias{rswat_date_conversion}
 \title{Convert between two representations of date}
 \usage{
-rswat_date_conversion(d)
+rswat_date_conversion(d, NA_zeros = TRUE)
 }
 \arguments{
 \item{d}{either a Date object or an integer vector or list of them (or a matrix or dataframe)}

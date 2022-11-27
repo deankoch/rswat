@@ -223,27 +223,6 @@ rswat_db = setRefClass('rswat_db',
       }
     },
 
-    # get a data frame of start/end dates for the simulation as reported in time.sim or print.prt
-    get_sim_dates = function(lazy=TRUE, prt=FALSE, render=TRUE) {
-
-      # load check then open the file contents (first table)
-      f = ifelse(prt, 'print.prt', 'time.sim')
-      if( !lazy & !is_file_loaded(f) ) return( data.frame(date=as.Date(integer(0L))) )
-      time_file = open_config_file(f)[[1L]]
-
-      # extract integer representation of dates
-      dates_as_int = rbind(start = c(jday=time_file[['day_start']], year=time_file[['yrc_start']]),
-                           end = c(jday=time_file[['day_end']], year=time_file[['yrc_end']]))
-
-      # Dates in data frame with two rows
-      dates = rswat_date_conversion(dates_as_int)
-      if(!render) return(dates)
-
-      # or instead return a string for printing this information
-      if( anyNA(dates) ) return(NA_character_)
-      return( paste0('[', paste(dates[['date']], collapse=' to '), ']') )
-    },
-
     # console printout
     show = function() rswat_summarize_db(.db=.self)
   )

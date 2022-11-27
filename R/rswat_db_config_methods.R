@@ -5,7 +5,7 @@
 rswat_db$methods( list(
 
   # opens a batch of config files in a loop
-  open_config_batch = function(f=NULL, refresh=FALSE, update_stats=FALSE, quiet=FALSE) {
+  open_config_batch = function(f=NULL, refresh=FALSE, quiet=TRUE, update_stats=FALSE) {
 
     # refresh files list and remove any existing data that would be replaced below
     if( refresh )
@@ -39,9 +39,9 @@ rswat_db$methods( list(
       if(!quiet)
       {
         idx_progress = which(f==fname)
-        setTxtProgressBar(pb, idx_progress)
+        utils::setTxtProgressBar(pb, idx_progress)
         msg_progress[idx_progress] |> cat()
-        flush.console()
+        utils::flush.console()
       }
 
       # load the file and copy to storage, waiting until the end to update stats
@@ -54,7 +54,7 @@ rswat_db$methods( list(
     # tidy final state for progress bar message
     if(!quiet)
     {
-      setTxtProgressBar(pb, 1L+length(f))
+      utils::setTxtProgressBar(pb, 1L+length(f))
       close(pb)
       cat('\n')
     }
@@ -65,18 +65,28 @@ rswat_db$methods( list(
 
     # check if the file is already loaded and skip when refresh not requested
     needs_loading = refresh | !get_cio_df(what='loaded', f=f, drop=TRUE)
+    if( length(needs_loading) == 0L ) stop('file name not recognized')
     if( needs_loading )
     {
-      # open and parse the file (populate line_df_temp) then copy tables to data frames in storage
-      get_config_tables(f, output=FALSE, refresh=refresh)
+      # recover from load errors
+      load_result = tryCatch({
 
-      # skipped for empty files
-      # DEBUGGING
-      if( TRUE )
-      #if( length(stor_df[[f]]) > 0 )
+        # open and parse the file (overwrites line_df_temp and stor_df[[f]])
+        .db$get_config_tables(f, output=FALSE, refresh=refresh)
+
+      }, error = function(err) err)
+
+      # copy errors when there is a problem
+      is_new = which(cio_df[['file']] == f)
+      if( is(load_result, 'error') )
       {
+        # copy the error message to the files data frame and flag as error
+        cio_df[['msg']][is_new] <<- as.character(load_result)
+        cio_df[['error']][is_new] <<- TRUE
+
+      } else {
+
         # set the 'loaded' flag in files metadata and directory list
-        is_new = which(cio_df[['file']] == f)
         cio_df[['loaded']][is_new] <<- TRUE
 
         # add type and group columns to temporary variables data frame
@@ -88,12 +98,13 @@ rswat_db$methods( list(
         rownames(line_df) <<- seq(nrow(line_df))
 
         # parse file.cio to update groups
-        if(f == 'file.cio') parse_file_cio(refresh=FALSE, quiet=TRUE)
+        if(f == 'file.cio') parse_file_cio(refresh=FALSE)
+
+        # update OS file info
+        if(update_stats) stats_cio_df()
       }
     }
 
-    # update OS file info
-    if(update_stats) stats_cio_df()
     if(output) return(stor_df[[f]])
   },
 
@@ -211,7 +222,7 @@ rswat_db$methods( list(
       # set number of lines to read with default -1 indicating all
       n_readLines = -1L
 
-      # exceptions for weather and output headers (data is loaded elsewhere)
+      # exceptions for weather and output (only their header lines are loaded by this method)
       if( cio_df[['type']][idx_cio] == 'weather' ) n_readLines = .rswat_gv_line_num('weather') - 1L
       if( cio_df[['type']][idx_cio] == 'output' ) n_readLines = .rswat_gv_line_num('output', f) - 1L
 
@@ -242,22 +253,23 @@ rswat_db$methods( list(
     cio_group = do.call(rbind, cio_by_group) |> dplyr::filter( !(file %in% null_strings) )
 
     # deal with files listed in file.cio, but not found in swat_dir
-    is_unknown = !( cio_group[['file']] %in% existing_files )
-    if( any(is_unknown) )
+    unknown_files = cio_group[['file']][ !( cio_group[['file']] %in% existing_files ) ]
+    if( length(unknown_files) > 0 )
     {
-      # report the files on console
-      unknown_files = cio_group[['file']][is_unknown]
-      files_msg = paste(unknown_files, collapse=', ')
-      missing_msg = 'file(s) listed in file.cio but not found on disk:'
-      if(!quiet) paste(sum(is_unknown), missing_msg, files_msg, '\n') |> cat()
+      # fill in file info flagging as non-existent
+      unknown_df = data.frame(file = unknown_files,
+                              path = file.path(swat_dir, unknown_files),
+                              exists = FALSE,
+                              loaded = FALSE,
+                              error = TRUE,
+                              msg = 'Error: file was listed in file.cio but not found on disk')
 
-      # append the missing files to directory listing but flag as non-existent
-      cio_df <<- data.frame(file=unknown_files, exists=FALSE, loaded=FALSE) |>
-        dplyr::full_join(cio_df, by=c('file', 'exists', 'loaded'))
+      # merge with existing directory info
+      cio_df <<- unknown_df |> dplyr::full_join(cio_df, by=names(unknown_df))
     }
 
     # write group names to known files in directory listing
-    is_listed = cio_df[['file']] %in% cio_group[['file']][!is_unknown]
+    is_listed = cio_df[['file']] %in% cio_group[['file']]#[!is_unknown]
     idx_group = cio_df[['file']][is_listed] |> match(cio_group[['file']])
     cio_df[['group']][is_listed] <<- cio_group[['group']][idx_group]
 
@@ -398,14 +410,13 @@ rswat_db$methods( list(
     # return from empty file (headers only) case
     if( nrow( stor_df[[f]][[table_num]] ) == 0L )
     {
-      # copy names first
+      # make sure header names get copied to line_df in storage
       if( any(!is_unnamed) ) df_header[['name']][!is_unnamed] = df_start[['string']][!is_unnamed]
       if( any(is_unnamed) ) df_header[['name']][is_unnamed] = paste0('V', which(is_unnamed))
       line_df_temp <<- df_header
 
-      #TODO: write an empty data frame with the right column names in empty file case
-
-      stor_df[[f]][[table_num]] <<- data.frame()
+      # write an empty data frame to storage with the expected column names
+      stor_df[[f]][[table_num]] <<- rswat_empty_df(df_header[['name']])
       return(invisible())
     }
 
@@ -424,11 +435,8 @@ rswat_db$methods( list(
     df_header[['class']] = nm_class
     line_df_temp <<- rbind(df_header, df_end)
 
-
-    # TODO: replace NAs?
+    # TODO: check if we need to replace NAs like we do with weather files?
     #stor_df[[f]][[table_num]][ stor_df[[f]][[table_num]] == .rswat_gv_weather_NA_val() ] <<- NA
-
-
   }
 
 ))

@@ -9,9 +9,9 @@ rswat(
   exe_path = NA_character_,
   include = c("config", "weather"),
   exclude = .rswat_gv_exclude(),
-  n_max = 5L,
   quiet = FALSE,
   reset = FALSE,
+  refresh = FALSE,
   .db = .rswat_db
 )
 }

@@ -6,7 +6,7 @@
 \usage{
 rswat_open(
   f = NULL,
-  refresh = FALSE,
+  refresh = TRUE,
   update_stats = TRUE,
   quiet = FALSE,
   .db = .rswat_db

@@ -103,7 +103,7 @@ rswat_find = function(pattern = '*',
     {
       # load the requested file (or halt if files not found)
       message(paste('loading:', paste(f[!is_loaded], collapse=', ')))
-      rswat_open(f[!is_loaded], .db=.db)
+      rswat_open(f[!is_loaded], refresh=TRUE, .db=.db)
 
     } else {
 
