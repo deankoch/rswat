@@ -205,10 +205,12 @@ rswat_open = function(f = NULL,
 
   # report load failures
   is_failed = is_known & !is_loaded
-  if(!quiet & any(is_failed)) warning(paste0('rswat failed to load',
+  if(!quiet & any(is_failed)) warning(paste0('rswat failed to load ',
                                              paste(f[is_failed], collapse=', '),
-                                             '. Use rswat_files(f=filename, what="msg") ',
-                                             'to view the error message(s)'))
+                                             '\n View the first error message with ',
+                                             'rswat_files(',
+                                             '"', f[which(is_failed)[1L]], '"',
+                                             ', what=c("file", "error", "msg"))'))
 
   # collapse length-1 lists and return
   if(length(list_out) == 1L) list_out = list_out[[1]]

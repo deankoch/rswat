@@ -23,12 +23,12 @@ rswat_db$methods( list(
     # build console progress messages with fixed width, and initialize a progress bar object
     if(!quiet)
     {
-      cat(paste('\nloading', n_files, 'file(s)'))
-      msg_width = nchar(f) |> max()
-      msg_pad = sapply(f, \(g) paste0(rep(' ', msg_width - nchar(g)), collapse=''))
-      msg_progress = paste(' > ', paste(f, msg_pad))
-      pb_width = getOption('width') - max(nchar(msg_progress)) - 5
-      pb = utils::txtProgressBar(max=1L+n_files, style=3L, width=pb_width)
+      message(paste(n_files, 'file(s) requested\n'))
+      n_max = ifelse(is.null(getOption('width')), 80L, getOption('width'))
+      msg_percent = paste0(round( 100 * seq_along(f) / length(f) ), '%')
+      msg_progress = paste('\r',
+                           '[', rswat_truncate_txt(msg_percent), ']',
+                           rswat_truncate_txt(f, n_max - max(nchar(msg_percent)) - 1L))
     }
 
     # loop over files, loading data into package storage
@@ -36,13 +36,7 @@ rswat_db$methods( list(
     for(fname in f)
     {
       # update progress bar prior to loading the file
-      if(!quiet)
-      {
-        idx_progress = which(f==fname)
-        utils::setTxtProgressBar(pb, idx_progress)
-        msg_progress[idx_progress] |> cat()
-        utils::flush.console()
-      }
+      if(!quiet) msg_progress[which(f==fname)] |> cat()
 
       # load the file and copy to storage, waiting until the end to update stats
       open_config_file(fname, output=FALSE, refresh=FALSE, update_stats=FALSE)
@@ -52,12 +46,7 @@ rswat_db$methods( list(
     if(update_stats) stats_cio_df()
 
     # tidy final state for progress bar message
-    if(!quiet)
-    {
-      utils::setTxtProgressBar(pb, 1L+length(f))
-      close(pb)
-      cat('\n')
-    }
+    if(!quiet) cat('\n')
   },
 
   # open a swat config file
@@ -140,37 +129,47 @@ rswat_db$methods( list(
     # workaround for loading output tables with missing/mismatched units row
     if( 'output' == get_cio_df(what='type', f=f, drop=TRUE) ) { fix_output_table(f) } else {
 
-      # copy variable names from fread calls, in a loop over table numbers
+      # copy variable names for fread results, in a loop over table numbers
       for(tn in table_num)
       {
+        # repair ragged table data where one or more headers are missing
+        line_df_temp <<- rswat_fix_config(line_df_temp, table_num=tn)
+
+        # initialize column names using those assigned by data.table::fread
+        nm_head = names(stor_df[[f]][[tn]])
+
         # find relevant rows of temporary metadata list
         is_table = line_df_temp[['table']] == tn
+        is_head = is_table & line_df_temp[['header']]
+        if( any(is_head) )
+        {
+          # describe the problem when there is a mismatch
+          msg_mismatch = paste(sum(is_head), 'column names, but ncol=', length(nm_head))
+          if(length(nm_head) != sum(is_head)) stop(msg_mismatch)
 
-        # find mapping from parameters data frame to line_df based on field order and header spacing
-        nm_header = names(stor_df[[f]][[tn]])
-        n_col = line_df_temp[['field_num']][is_table] |> max() |> pmin(length(nm_header))
-        idx_col_j = lapply(seq(n_col), \(j) which(line_df_temp[['field_num']][is_table] == j))
+          # replace column names with any header names already known to rswat
+          nm_head = line_df_temp[['string']][is_head]
+          names(stor_df[[f]][[tn]]) <<- nm_head
+        }
 
-        # assign variable 'name' (writes to both tabular and header entries)
-        header_j = lapply(seq(n_col), \(j) rep(nm_header[j], length(idx_col_j[[j]])) )
-        line_df_temp[['name']][is_table][ unlist(idx_col_j) ] <<- unlist(header_j)
+        # check for mismatch in data rows max field number
+        n_field_extra = max(line_df_temp[['field_num']][is_table]) - length(nm_head)
+        msg_mismatch = paste('data row(s) had', n_field_extra, 'extra (unnamed) fields')
+        if( n_field_extra > 0L ) stop(msg_mismatch)
 
-        # repeat for 'class' (writes to both tabular and header entries)
+        # gather classes and precision levels of column
         nm_class = unlist( lapply(stor_df[[f]][[tn]], class) )
-        class_j = lapply(seq(n_col), \(j) rep(nm_class[j], length(idx_col_j[[j]])) )
-        line_df_temp[['class']][is_table][ unlist(idx_col_j) ] <<- unlist(class_j)
+        n_prec = line_df_temp[is_table & !is_head,, drop=FALSE] |>
+          dplyr::group_by(field_num) |>
+          dplyr::summarize(n_prec = ifelse(all(is.na(n_prec)), NA, max(n_prec, na.rm=TRUE)) ) |>
+          dplyr::arrange(field_num) |>
+          dplyr::pull(n_prec)
 
-        # find the known precision levels (based on first row of table)
-        nm_nprec = lapply(idx_col_j, \(j) {
-
-          # the ifelse handles cases where an entry is missing or the table has no rows
-          line_df_temp[['n_prec']][is_table][ifelse(length(j) > 1, j[2], NA) ]
-        })
-
-        # copy precision info to headers
-        is_header = is_table & line_df_temp[['header']]
-        n_copy = min(sum(is_header), length(unlist(nm_nprec)))
-        line_df_temp[['n_prec']][is_header][seq(n_copy)] <<- unlist(nm_nprec)[seq(n_copy)]
+        # propagate the variable names, classes, n_prec to all rows
+        line_df_temp[is_table,] <<- line_df_temp[is_table,, drop=FALSE] |>
+          dplyr::mutate(name = nm_head[field_num]) |>
+          dplyr::mutate(class = nm_class[field_num]) |>
+          dplyr::mutate(n_prec = n_prec[field_num])
       }
     }
 
@@ -369,6 +368,8 @@ rswat_db$methods( list(
     # add rows to df_start to represent last row of data
     df_end = utils::modifyList(df_start, data.frame(line_num=last_line_num))
     line_df_temp <<- rbind(line_df_temp, df_start, df_end)
+
+    # return the new set of table numbers
     return(seq(2L))
   },
 

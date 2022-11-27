@@ -202,7 +202,7 @@ rswat_weather_report = function(lazy = TRUE,
 
     # build message about full date range
     dates_range = dates_df[, is_loaded_station, drop=FALSE] |> as.matrix() |> range()
-    msg_period = paste0('[', paste(dates_range, collapse=' to '), ']')
+    msg_period = paste('[', paste(dates_range, collapse=' to '), ']')
 
     # identify variables spanning full date range
     is_full = apply(dates_df[, is_loaded_station, drop=FALSE] == dates_range, 2L, all)
@@ -296,7 +296,7 @@ rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db) {
 
         # copy results
         out_msg[nm] = paste(msg_count,
-                            paste(paste0('[', dates_range, ']'), collapse=' to '), step_msg)
+                            paste(paste('[', dates_range, ']'), collapse=' to '), step_msg)
         out_dates[[nm]] = dates_range
       }
     }
@@ -341,17 +341,22 @@ rswat_sim_dates = function(lazy=TRUE, prt=FALSE, render=TRUE, .db=.rswat_db) {
     # zero years in time.sim are invalid
     if(!prt) { dates = NA } else {
 
-      # zeros are shorthand for "same as time.sim" in this case
-      year_sim = rswat_sim_dates(lazy=lazy, prt=FALSE, render=FALSE, .db=.db)[['date']] |> format('%Y')
-      dates_as_int[is_year_zero, 'year'] = as.integer(year_sim[is_year_zero])
+      # zero years in print.prt are shorthand for "same as time.sim"
+      year_sim = rswat_sim_dates(lazy=lazy, prt=FALSE, render=FALSE, .db=.db)[['date']] |>
+        format('%Y') |> as.integer()
+
+      dates_as_int[is_year_zero, 'year'] = year_sim[is_year_zero]
     }
   }
+
+  # omit the first integer nyskip years to get actual start year for printing
+  if(prt) dates_as_int['start', 'year'] = dates_as_int['start', 'year'] + time_file[['nyskip']]
 
   # if render=FALSE, return Dates in data frame with two rows
   dates = rswat_date_conversion(dates_as_int, NA_zeros=FALSE)
   if(!render) return(dates)
   if( anyNA(dates) ) return(NA_character_)
-  dates_msg = paste0('[', paste(dates[['date']], collapse=' to '), ']')
+  dates_msg = paste('[', paste(dates[['date']], collapse=' to '), ']')
   return(dates_msg)
 }
 

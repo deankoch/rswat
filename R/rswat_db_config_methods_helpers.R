@@ -286,64 +286,57 @@ rswat_rtable_txt = function(line_df, txt_path, table_num=NULL, all_rows=FALSE, q
 
   # find index for this table in line_df and copy the required subset
   is_row_requested = !is.na(table_num_vec) & (table_num_vec == table_num)
-  nm_needed = c('string', 'header', 'skipped', 'line_num', 'field_num', 'class', 'table')
-  line_df_sub = line_df[is_row_requested, nm_needed]
+  nm_needed = c('string', 'header', 'line_num', 'field_num', 'class', 'table')
+  line_df_sub = line_df[is_row_requested, nm_needed, drop=FALSE]
+  is_head = line_df_sub[['header']]
 
-  # identify the line numbers to load
-  ln_start = data.table::first( line_df_sub[['line_num']] )
-  ln_end = data.table::last( line_df_sub[['line_num']] )
-  ln_read = ln_start:ln_end
-  has_headers = any(line_df_sub[['header']])
-  nrow_load = length(ln_read) - as.integer(has_headers)
-  if(all_rows) nrow_load = Inf
+  # identify the line numbers to load and expected number of columns
+  ln_start = min(line_df_sub[['line_num']])
+  ln_read = ln_start:max(line_df_sub[['line_num']])
+  nrow_load = ifelse(all_rows, Inf, length(ln_read))
+  n_field = max( line_df_sub[['field_num']] )
 
-  # expected number of fields to load (prevents bugs with unnamed final columns)
-  n_field = max(line_df_sub[['field_num']])
-
-  # copy headers (if any) to assign to empty data frame case
-  nm_empty = n_field
-  if(has_headers) nm_empty = line_df_sub[['string']][ line_df_sub[['header']] ]
-
-  # load as data frame, copying error messages as attribute
-  df_out = tryCatch({
-
-    # error on empty config files
-    if( nrow_load == 0L ) return(rswat_empty_df(nm_empty))
-
-    # check for unexpectedly empty files when attempting to read all
-    if( is.infinite(nrow_load) )
-    {
-      # fast call to check if there is at least one data row
-      is_empty = 1L == nrow(data.table::fread(input = txt_path,
-                                              skip = ln_start-2L,
-                                              nrows = 2L,
-                                              header = FALSE,
-                                              fill = TRUE))
-
-      # in this case skip would equal length of file, causing an error
-      if(is_empty) return(rswat_empty_df(nm_empty))
-    }
-
-    # load all requested table lines with fread (returns a tibble)
-    data.table::fread(input = txt_path,
-                      skip = ln_start-1L,
-                      select = seq(n_field),
-                      nrows = nrow_load,
-                      fill = TRUE) |> data.frame()
-
-  }, error = function(err) err) |> suppressWarnings()
-
-  # errors dealt with by returning an empty data frame with error message as attribute
-  if( is(df_out, 'error') )
+  # an empty data frame to return when there is no table data
+  df_empty = rswat_empty_df(n_field)
+  if( any(is_head) )
   {
-    # report errors to user as warning
-    err_msg = as.character(df_out)
-    if(!quiet) warning(err_msg)
+    # add names to empty output
+    df_empty = rswat_empty_df( line_df_sub[['string']][is_head] )
 
-    # dummy return value with info in attributes
-    df_out = data.frame()
-    attr(df_out, 'rswat_msg') = err_msg
+    # if there are unnamed columns, skip loading header row
+    n_head = max( line_df_sub[['field_num']][is_head] )
+    if(n_head < n_field)
+    {
+      ln_start = ln_start + 1L
+      nrow_load = nrow_load - 1L
+      is_head = FALSE
+    }
   }
+
+  # empty config files
+  if( nrow_load == 0L ) return(df_empty)
+
+  # check for unexpectedly empty files when attempting to read all
+  if( is.infinite(nrow_load) )
+  {
+    # fast call to check if there is at least one data row
+    is_empty = 1L == nrow(data.table::fread(input = txt_path,
+                                            skip = ln_start-2L,
+                                            nrows = 2L,
+                                            header = FALSE,
+                                            fill = TRUE))
+
+    # in this case skip would equal length of file, causing an error
+    if(is_empty) return(df_empty)
+  }
+
+  # load all requested table lines with fread (note interaction of `nrows` and `header` args)
+  df_out = data.table::fread(input = txt_path,
+                             skip = ln_start-1L,
+                             header = any(is_head),
+                             select = seq(n_field),
+                             nrows = nrow_load - any(is_head),
+                             fill = TRUE) |> data.frame()
 
   # assign attributes describing where this table can be found on disk
   attr(df_out, 'rswat_path') = swat_dir
@@ -439,3 +432,38 @@ rswat_n_prec_txt = function(line_df, table_num=NULL, quiet=FALSE)
   line_df[['n_prec']][idx_row_requested[is_num]] = unlist(n_prec_bycol)
   return(line_df)
 }
+
+
+rswat_fix_config = function(line_df_temp, table_num=1L)
+{
+  # count number of fields in header row and return from degenerate cases
+  is_table = line_df_temp[['table']] == table_num
+  line_df_sub = line_df_temp[is_table, , drop=FALSE]
+  is_head = line_df_sub[['header']]
+  if( all(is_head) | !any(is_head) | !any(is_table) ) return(line_df_temp)
+
+  # count max number of fields in all rows
+  n_head = line_df_sub[['field_num']][is_head] |> max()
+  n_add = max(line_df_sub[['field_num']]) - n_head
+
+  # if there are no missing headers, return the input, else make new headers
+  if(n_add == 0L) return(line_df_temp)
+  nm_add = tail(paste0('V', seq(n_head + n_add)), n_add)
+
+  # copy the last header field info to fill in the missing rows
+  idx_clone = which(is_head)[ which.max( line_df_sub[['field_num']][is_head] ) ]
+  row_clone = line_df_sub[idx_clone, , drop=FALSE]
+  row_clone = row_clone[rep(1L, n_add), ] |>
+    utils::modifyList(list(string = nm_add,
+                           field_num = row_clone[['field_num']] + seq(n_add)))
+
+  # append the new rows and reorder
+  line_df_out = rbind(line_df_temp, row_clone) |> dplyr::arrange(line_num)
+  rownames(line_df_out) = NULL
+  return(line_df_out)
+}
+
+
+
+
+
