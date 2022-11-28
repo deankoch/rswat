@@ -4,19 +4,26 @@
 \alias{rswat_date_conversion}
 \title{Convert between two representations of date}
 \usage{
-rswat_date_conversion(d, NA_zeros = TRUE)
+rswat_date_conversion(d, NA_zeros = TRUE, trim = TRUE)
 }
 \arguments{
-\item{d}{either a Date object or an integer vector or list of them (or a matrix or dataframe)}
+\item{d}{either a Date vector or dataframe, whichever \code{d} is not}
 }
 \value{
-Either a Date vector or a data frame of j, yr, values
+either a Date vector or dataframe, whichever \code{d} is not
 }
 \description{
 If \code{d} is a Date vector, the function returns a data frame with the same number of rows,
-and attributes: Julian date ('j' ) and year ('yr'). Otherwise the function assumes \code{d}
-is a data frame (or matrix, or list) of this form and it does the inverse, returning a vector
-of Dates. \code{d} can also be a single integer vector c(j, yr)
+and columns Julian date ('jday' ) and year ('year'). Otherwise the function assumes \code{d}
+is a data frame (or matrix, or list) containing a 'year' column and a 'jday' or 'month'
+column (or both). It appends a new column 'date' (or overwrites the existing one) with
+these values converted to R Dates.
+}
+\details{
+The 'year', 'jday', and 'month' columns can also be named any of the aliases listed in
+\code{.rswat_gv_date_aliases()}. When 'month' but not 'jday' is specified, the function
+sets the date to the first of the month. When only 'year' is specified, the function
+assigns Jan 1 of that year.
 }
 \examples{
 # convert from integers to Dates

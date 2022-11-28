@@ -7,12 +7,12 @@
 rswat_weather_dates(lazy = TRUE, .db = .rswat_db)
 }
 \arguments{
-\item{lazy}{logical}
+\item{lazy}{logical, indicates to load 'weather-sta.cli' and all of the files listed therein}
 
 \item{.db}{rswat_db object reference, for internal use}
 }
 \value{
-returns a data frame of start end dates
+returns a data frame of start and end dates
 }
 \description{
 work in progress

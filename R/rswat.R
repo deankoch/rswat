@@ -27,7 +27,7 @@
 #'
 rswat = function(swat_dir = NULL,
                  exe_path = NA_character_,
-                 include = c('config', 'weather'),
+                 include = 'default',
                  exclude = .rswat_gv_exclude(),
                  quiet = FALSE,
                  reset = FALSE,
@@ -80,6 +80,9 @@ rswat = function(swat_dir = NULL,
   # load other files on request
   if( !is.null(include) )
   {
+    # process shorthand in 'include'
+    if( length(include) == 1L ) include = .rswat_gv_include_lu(include)
+
     # include has precedence over exclude in conflicts
     is_conflicted = exclude %in% include
     if( any(is_conflicted) ) exclude = exclude[!is_conflicted]
@@ -131,6 +134,7 @@ rswat_open = function(f = NULL,
                       refresh = TRUE,
                       update_stats = TRUE,
                       quiet = FALSE,
+                      output = TRUE,
                       .db = .rswat_db) {
 
   # make sure the project directory is assigned
@@ -186,8 +190,11 @@ rswat_open = function(f = NULL,
     is_loaded = .db$is_file_loaded(f)
 
     # return everything that was successfully loaded, collapsing length-1 lists
-    list_out = .db$get_stor_df(f[is_loaded])
-    if(length(list_out) == 1L) list_out = list_out[[1]]
+    if(output)
+    {
+      list_out = .db$get_stor_df(f[is_loaded])
+      if(length(list_out) == 1L) list_out = list_out[[1]]
+    }
 
   } else {
 
@@ -199,8 +206,9 @@ rswat_open = function(f = NULL,
     }
 
     # open a single file
-    list_out = .db$open_config_file(f, refresh=refresh, update_stats=update_stats)
+    .db$open_config_file(f, refresh=refresh, output=FALSE, update_stats=update_stats)
     is_loaded = .db$is_file_loaded(f)
+    list_out = .db$get_stor_df(f[is_loaded])
   }
 
   # report load failures
@@ -211,6 +219,9 @@ rswat_open = function(f = NULL,
                                              'rswat_files(',
                                              '"', f[which(is_failed)[1L]], '"',
                                              ', what=c("file", "error", "msg"))'))
+
+  # return without data frames
+  if(!output) return(invisible())
 
   # collapse length-1 lists and return
   if(length(list_out) == 1L) list_out = list_out[[1]]

@@ -1,8 +1,18 @@
 # defaults for rswat functions
 
+.rswat_gv_include_lu = function(include) switch(include,
+                                                'basic' = c('simulation', 'climate'),
+                                                'default' = c('config', .rswat_gv_include_lu('basic')),
+                                                'more' = c('weather', .rswat_gv_include_lu('normal')),
+                                                'all' = c('output', .rswat_gv_include_lu('full')),
+                                                include)
+
+# aliases for date fields in output files
+.rswat_gv_date_aliases = function() list(jday=c('day'), month=c('mon'), year=c('yr'))
+
 # characters for show method of rswat_db
 #.rswat_ok_char = function() c(yes='\U25B7', fail='\U25C9', no='\U25B6', sub='\U25B9')
-.rswat_ok_char = function() c(yes='\U25C7', fail='\U25C8', no='\U25C6', sub='\U25B9')
+.rswat_ok_char = function() c(yes='\U25C6', fail='\U25C8', no='\U25C7', sub='\U25B9')
 
 # this number is used to denote NA in the weather input files
 .rswat_gv_weather_NA_val = function() -99

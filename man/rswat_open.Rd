@@ -9,6 +9,7 @@ rswat_open(
   refresh = TRUE,
   update_stats = TRUE,
   quiet = FALSE,
+  output = TRUE,
   .db = .rswat_db
 )
 }

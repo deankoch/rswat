@@ -434,20 +434,27 @@ rswat_n_prec_txt = function(line_df, table_num=NULL, quiet=FALSE)
 }
 
 
-rswat_fix_config = function(line_df_temp, table_num=1L)
+#' Add rows to line_df to represent missing headers in SWAT+ config file
+#'
+#' @param line_df data frame of the form returned by `rswat_ftable_txt`
+#' @param table_num integer, the index of the table in the file
+#'
+#' @return a copy of line_df, possibly with rows added
+#' @export
+rswat_fix_config = function(line_df, table_num=1L)
 {
   # count number of fields in header row and return from degenerate cases
-  is_table = line_df_temp[['table']] == table_num
-  line_df_sub = line_df_temp[is_table, , drop=FALSE]
+  is_table = line_df[['table']] == table_num
+  line_df_sub = line_df[is_table, , drop=FALSE]
   is_head = line_df_sub[['header']]
-  if( all(is_head) | !any(is_head) | !any(is_table) ) return(line_df_temp)
+  if( all(is_head) | !any(is_head) | !any(is_table) ) return(line_df)
 
   # count max number of fields in all rows
   n_head = line_df_sub[['field_num']][is_head] |> max()
   n_add = max(line_df_sub[['field_num']]) - n_head
 
   # if there are no missing headers, return the input, else make new headers
-  if(n_add == 0L) return(line_df_temp)
+  if(n_add == 0L) return(line_df)
   nm_add = tail(paste0('V', seq(n_head + n_add)), n_add)
 
   # copy the last header field info to fill in the missing rows
@@ -458,7 +465,7 @@ rswat_fix_config = function(line_df_temp, table_num=1L)
                            field_num = row_clone[['field_num']] + seq(n_add)))
 
   # append the new rows and reorder
-  line_df_out = rbind(line_df_temp, row_clone) |> dplyr::arrange(line_num)
+  line_df_out = rbind(line_df, row_clone) |> dplyr::arrange(line_num)
   rownames(line_df_out) = NULL
   return(line_df_out)
 }

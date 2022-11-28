@@ -102,10 +102,14 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
     # create weather-sta.cli message
     if( is_loaded['weather-sta.cli'] )
     {
-      # this one possibly spans multiple lines
-      swat_msg['climate'] = ok_char['yes'] |>
+      # check if all weather files are loaded
+      dates_result = rswat_weather_dates(lazy = TRUE, .db = .db)
+      is_all_loaded = ifelse(all(is.na(dates_result)), TRUE, !any(dates_result == -1, na.rm=TRUE))
+
+      # this message possibly spans multiple lines
+      swat_msg['climate'] = ok_char[ifelse(is_all_loaded, 'yes', 'no')] |>
         paste( rswat_truncate_txt(show_mat['climate', 'txt'], n_head, just='right') ) |>
-        paste(rswat_weather_report(lazy=FALSE, n_head=n_head, quiet=TRUE, .db=.db))
+        paste( rswat_weather_report(lazy=FALSE, n_head=n_head, quiet=TRUE, .db=.db) )
 
     }
 
@@ -139,8 +143,8 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
 
 #' Return a printable string describing state of climate files in the SWAT+ project
 #'
-#' @param lazy logical
-#' @param n_head integer
+#' @param lazy logical, indicates to load 'weather-sta.cli' and all of the files listed therein
+#' @param n_head integer, the character width to use for printing headers
 #' @param quiet logical, if FALSE the function passes its output to `base::cat`
 #' @param ok_char character vector of symbols to use for bullets
 #' @param .db rswat_db object reference, for internal use
@@ -231,10 +235,10 @@ rswat_weather_report = function(lazy = TRUE,
 #'
 #' work in progress
 #'
-#' @param lazy logical
+#' @param lazy logical, indicates to load 'weather-sta.cli' and all of the files listed therein
 #' @param .db rswat_db object reference, for internal use
 #'
-#' @return returns a data frame of start end dates
+#' @return returns a data frame of start and end dates
 #' @export
 rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db) {
 
@@ -360,7 +364,18 @@ rswat_sim_dates = function(lazy=TRUE, prt=FALSE, render=TRUE, .db=.rswat_db) {
   return(dates_msg)
 }
 
-# reports on the table of output files in print.prt
+
+#' Summarize the list of activated output filenames in print.prt
+#'
+#'
+#'
+#' @param lazy logical, indicates to load print.prt as needed
+#' @param n_head integer, the character width to use for printing headers
+#' @param ok_char character vector of symbols to use for bullets
+#' @param .db
+#'
+#' @return a character string to print on the console (with `base::cat`)
+#' @export
 rswat_report_outputs = function(lazy=TRUE, n_head=10L, ok_char=.rswat_ok_char(), .db=.rswat_db)
 {
   # return empty character when print.prt not loaded and lazy=FALSE

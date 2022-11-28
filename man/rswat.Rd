@@ -7,7 +7,7 @@
 rswat(
   swat_dir = NULL,
   exe_path = NA_character_,
-  include = c("config", "weather"),
+  include = "default",
   exclude = .rswat_gv_exclude(),
   quiet = FALSE,
   reset = FALSE,

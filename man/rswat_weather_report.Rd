@@ -13,9 +13,9 @@ rswat_weather_report(
 )
 }
 \arguments{
-\item{lazy}{logical}
+\item{lazy}{logical, indicates to load 'weather-sta.cli' and all of the files listed therein}
 
-\item{n_head}{integer}
+\item{n_head}{integer, the character width to use for printing headers}
 
 \item{quiet}{logical, if FALSE the function passes its output to \code{base::cat}}
 

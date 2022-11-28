@@ -154,16 +154,63 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
   return( paste0(txt_pad, txt_short) )
 }
 
+
+#' Rename columns in a data frame according to a list of aliases
+#'
+#' This checks the names of `d` for any matches to the strings in
+#' `aliases`. If any matches are found, the column is renamed to the
+#' alias, unless the alias is already in use.
+#'
+#' @param d a data frame to check for aliases
+#' @param aliases named list of character vectors (the aliases)
+#'
+#' @return the data frame `d`, possibly with new names
+#' @export
+rswat_rename = function(d, aliases=NULL)
+{
+  # build a look-up table from aliases (adding self references)
+  alias_df = data.frame(name = do.call(c, Map(\(x, y) c(x, y), names(aliases), aliases)),
+                        alias = do.call(c, Map(\(x, y) rep(x, 1L+length(y)), names(aliases), aliases)))
+
+  # match to column names (returning input in degenerate cases)
+  nm_d = names(d)
+  if(is.null(d)) return(d)
+  idx_match = match(nm_d, alias_df[['name']])
+  is_mapped = !is.na(idx_match)
+  if( !any(is_mapped) ) return(d)
+
+
+  nm_new = alias_df[['alias']][ idx_match[is_mapped] ]
+  is_dupe = duplicated(nm_new)
+  if( any(is_dupe) )
+  {
+    idx_match[is_dupe] = NA
+    is_mapped = !is.na(idx_match)
+    if( !any(is_mapped) ) return(d)
+  }
+
+  # rename the columns
+  names(d)[which(is_mapped)] = nm_new[!is_dupe]
+  return(d)
+}
+
+
 #' Convert between two representations of date
 #'
 #' If `d` is a Date vector, the function returns a data frame with the same number of rows,
-#' and attributes: Julian date ('j' ) and year ('yr'). Otherwise the function assumes `d`
-#' is a data frame (or matrix, or list) of this form and it does the inverse, returning a vector
-#' of Dates. `d` can also be a single integer vector c(j, yr)
+#' and columns Julian date ('jday' ) and year ('year'). Otherwise the function assumes `d`
+#' is a data frame (or matrix, or list) containing a 'year' column and a 'jday' or 'month'
+#' column (or both). It appends a new column 'date' (or overwrites the existing one) with
+#' these values converted to R Dates.
 #'
-#' @param d either a Date object or an integer vector or list of them (or a matrix or dataframe)
+#' The 'year', 'jday', and 'month' columns can also be named any of the aliases listed in
+#' `.rswat_gv_date_aliases()`. When 'month' but not 'jday' is specified, the function
+#' sets the date to the first of the month. When only 'year' is specified, the function
+#' assigns Jan 1 of that year.
 #'
-#' @return Either a Date vector or a data frame of j, yr, values
+#' @param d either a Date vector or dataframe, whichever `d` is not
+#'
+#' @return either a Date vector or dataframe, whichever `d` is not
 #' @export
 #'
 #' @examples
@@ -181,29 +228,19 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
 #' date_as_df = data.frame(do.call(rbind, date_as_int))
 #' all.equal(date_result, rswat_date_conversion(date_as_df))
 #'
-rswat_date_conversion = function(d, NA_zeros=TRUE) {
+rswat_date_conversion = function(d, NA_zeros=TRUE, trim=TRUE) {
 
   # handle non-date inputs
   if( !is(d, 'Date') )
   {
     # matrix to data.frame
+    if( nrow(d) == 0L ) return(d)
     if( is.matrix(d) ) d = as.data.frame(d)
 
     # check names and match to expected ones
-    nm_expect = c('jday', 'year')
-    nm_d = names(d)
-    if( is.null(nm_d) ) nm_d = nm_expect
-    nm_match = rswat_fuzzy_match(name_df = data.frame(name=nm_d),
-                                 alias_df = data.frame(name=nm_expect),
-                                 skip = FALSE,
-                                 alias_desc = FALSE,
-                                 name_split = FALSE,
-                                 div_penalty = 0)
-
-    # identify any extra columns to return, and rename the year/date
-    is_mapped = !is.na(nm_match[['alias']])
-    nm_extra = nm_d[!is_mapped]
-    names(d) = c(nm_match[['alias']][is_mapped], nm_extra)
+    aliases = .rswat_gv_date_aliases()
+    d = rswat_rename(d, aliases)
+    d_nm = names(d)
 
     # deal with zeros as shorthand for first and last days of the year
     if(!NA_zeros)
@@ -214,16 +251,30 @@ rswat_date_conversion = function(d, NA_zeros=TRUE) {
       if(d['end', 'jday'] == 0) d['end', 'jday'] = format(last_date, '%j')[[1L]]
     }
 
+    # the year is mandatory for setting dates
+    if( is.null(d[['year']]) ) stop('year not found')
+
+    # set placeholder jday and month when missing
+    if( is.null( d[['jday']] ) )
+    {
+      # this sets Jan 1 as date reported for yearly output
+      if( is.null( d[['month']] ) ) { d[['jday']] = 1L } else {
+
+        # assign the Julian date of the first of the month
+        d[['jday']] = d[c('month', 'year')] |>
+          apply(1L, \(x) paste0('1-', paste(x, collapse='-'))) |>
+          as.Date(format='%j')
+      }
+    }
+
     # convert to Date via string
-    d_as_date = d[nm_expect] |>
-      apply(1L, \(x) paste0(x[1L], '-', x[2L]), simplify=FALSE) |>
-      unlist() |>
+    d[['date']] = d[c('jday', 'year')] |>
+      apply(1L, \(x) paste0(x, collapse='-')) |>
       as.Date(format='%j-%Y')
 
-    # copy over the original row names
-    out_df = cbind(data.frame(date=d_as_date), d[nm_extra])
-    rownames(out_df) = rownames(d)
-    return(out_df)
+    # trim reduendant date fields on request
+    if(trim) d_nm = d_nm[ !(d_nm %in% c(aliases, names(aliases)) ) ]
+    return(d[, c('date', d_nm), drop=FALSE])
   }
 
   warning('this mode not implemented yet')
