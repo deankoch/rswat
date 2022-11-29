@@ -81,11 +81,17 @@ rswat_validate_fpath = function(p, extension=NA, p_name='p') {
 #' @param txt character vector, or a data frame
 #' @param max_len integer, the maximum width allowed for printing (`NULL` to set automatically)
 #' @param NA_char character, string to print in place of `NA`s
+#' @param trim logical, indicates to remove redundant whitespace (see details)
 #' @param more_char character, string to indicate that a field has been shortened
 #'
 #' @return character vector or data frame (the same length as `txt`)
 #' @export
-rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', just='left') {
+rswat_truncate_txt = function(txt,
+                              max_len = NULL,
+                              NA_char = '~',
+                              more_char = '...',
+                              just = 'left',
+                              trim = TRUE) {
 
   # handle data frames
   if( is.data.frame(txt) )
@@ -128,7 +134,7 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
   }
 
   # clean up input text and set default max_len to longest string length
-  txt = gsub('\\s+', ' ', replace(txt, is.na(txt), NA_char), perl=TRUE) |> trimws()
+  if(trim) txt = gsub('\\s+', ' ', replace(txt, is.na(txt), NA_char), perl=TRUE) |> trimws()
   if( is.null(max_len) ) max_len = max(nchar(txt))
 
   # make sure the truncation symbol is not too long
@@ -166,8 +172,8 @@ rswat_truncate_txt = function(txt, max_len=NULL, NA_char='~', more_char='...', j
 #'
 #' @return the data frame `d`, possibly with new names
 #' @export
-rswat_rename = function(d, aliases=NULL)
-{
+rswat_rename = function(d, aliases=NULL) {
+
   # build a look-up table from aliases (adding self references)
   alias_df = data.frame(name = do.call(c, Map(\(x, y) c(x, y), names(aliases), aliases)),
                         alias = do.call(c, Map(\(x, y) rep(x, 1L+length(y)), names(aliases), aliases)))
@@ -192,6 +198,39 @@ rswat_rename = function(d, aliases=NULL)
   # rename the columns
   names(d)[which(is_mapped)] = nm_new[!is_dupe]
   return(d)
+}
+
+
+
+#' Make a vector of messages for reporting progress in console via `base::cat`
+#'
+#' This takes a vector of object names and returns a short message for each one,
+#' consisting of a percentage (how far through the list are we) followed by the
+#' name.
+#'
+#' Strings are truncated/padded to `n_max` (by default, the console width as given
+#' by the R option 'width') and each begins with the special symbol '\r', which
+#' (when passed to `cat`) asks the terminal or console in which R is running to
+#' do a carriage return and overwrite the existing line.
+#'
+#'
+#' @param nm character vector, the objects to progress through
+#' @param n_max integer or NULL, the maximum line width for printing
+#'
+#' @return a character vector the same length as `nm`
+#' @export
+rwat_progress = function(nm, n_max=NULL) {
+
+  if( is.null(n_max) ) n_max = ifelse(is.null(getOption('width')), 80L, getOption('width'))
+  msg_percent = paste0(round( 100 * seq_along(nm) / length(nm) ), '%')
+
+  # \r indicates to return to beginning and overwrite existing line
+  msg_progress = paste('\r[', rswat_truncate_txt(msg_percent), ']',
+                       rswat_truncate_txt(nm, n_max - max(nchar(msg_percent)) - 1L))
+
+  # return as named vector
+  names(msg_progress) = nm
+  return(msg_progress)
 }
 
 
@@ -528,3 +567,36 @@ rswat_amatch = function(m) {
 }
 
 
+
+#' Create zip archives
+#'
+#' This code is copied from utils::zip and simplified to use default arguments,
+#' but with the new option to omit the console output (with `quiet=TRUE`)
+#'
+#' @param zipfile character, the path to the zip file to write
+#' @param files character vector, file paths to zip
+#' @param quiet logical, if TRUE nothing is printed to the console
+#'
+#' @return status value (see utils::zip)
+#' @export
+rswat_zip = function(zipfile, files, quiet=FALSE) {
+
+  zip = Sys.getenv('R_ZIPCMD', 'zip')
+  flags = '-r9X'
+  args = c(flags, shQuote(path.expand(zipfile)), shQuote(files))
+  if(sum(nchar(c(args, Sys.getenv()))) + length(args) > 8000) {
+
+    args = c(flags, "-@", shQuote(path.expand(zipfile)))
+    input = files
+
+  } else { input = NULL }
+
+  if (.Platform$OS.type == 'windows') {
+
+    invisible(system2(zip, args, input=input, invisible=TRUE, stdout=ifelse(quiet, FALSE, '')))
+
+  } else {
+
+    invisible(system2(zip, args, input=input, stdout=ifelse(quiet, FALSE, '')))
+  }
+}
