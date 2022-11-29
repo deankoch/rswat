@@ -20,15 +20,11 @@ rswat_db$methods( list(
     n_files = sum( get_cio_df(what='exists', f=f, drop=TRUE) )
     if( n_files == 0 ) stop('file(s) not found')
 
-    # build console progress messages with fixed width, and initialize a progress bar object
+    # build console progress messages with fixed width
     if(!quiet)
     {
       message(paste(n_files, 'file(s) requested\n'))
-      n_max = ifelse(is.null(getOption('width')), 80L, getOption('width'))
-      msg_percent = paste0(round( 100 * seq_along(f) / length(f) ), '%')
-      msg_progress = paste('\r',
-                           '[', rswat_truncate_txt(msg_percent), ']',
-                           rswat_truncate_txt(f, n_max - max(nchar(msg_percent)) - 1L))
+      msg_progress = paste('loading', f) |> rwat_progress()
     }
 
     # loop over files, loading data into package storage
@@ -61,7 +57,7 @@ rswat_db$methods( list(
       load_result = tryCatch({
 
         # open and parse the file (overwrites line_df_temp and stor_df[[f]])
-        .db$get_config_tables(f, output=FALSE, refresh=refresh)
+        get_config_tables(f, output=FALSE, refresh=refresh)
 
       }, error = function(err) err)
 
