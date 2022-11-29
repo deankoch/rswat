@@ -15,18 +15,25 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
   # message in case non-existent files listed in file.cio
   unknown_msg = NULL
 
+  # check for existence of important files
+  f_check = c(cio='file.cio', time='time.sim', print='print.prt', climate='weather-sta.cli')
+  is_found = stats::setNames(f_check %in% .db$get_cio_df(what='file', drop=TRUE), names(f_check))
+  is_found = c(is_found, c(dir=TRUE, exe=TRUE))
+
   # matrix of categories and headers for printout
+  miss_msg = ifelse(is_found, 'not loaded', 'not found')
   show_mat = list(dir = c('directory:', 'not assigned'),
                   exe = c('simulator:', 'not assigned'),
-                  time = c('time.sim:', 'not loaded'),
-                  print = c('print.prt:', 'not loaded'),
-                  climate = c('climate:', 'weather-sta.cli not loaded'),
-                  cio = c('file.cio:', 'not loaded')) |> data.frame() |> t()
+                  time = c('time.sim:', miss_msg['time']),
+                  print = c('print.prt:', miss_msg['print']),
+                  cio = c('file.cio:', paste0(miss_msg['cio'], '\n')),
+                  climate = c('climate:', paste('weather-sta.cli', miss_msg['climate']))) |>
+    data.frame() |> t()
 
   # initialize headers and align to common width
   colnames(show_mat) = c('txt', 'alt')
   n_head = max(nchar(show_mat[, 'txt']))
-  swat_msg = ok_char['no'] |>
+  swat_msg = ok_char[ifelse(is_found[rownames(show_mat)], 'no', 'fail')] |>
     paste(rswat_truncate_txt(show_mat[,'txt'], n_head, just='right')) |>
     paste(show_mat[,'alt']) |>
     stats::setNames( rownames(show_mat) )
@@ -48,7 +55,6 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
   swat_msg['exe'] = ifelse(is.na(exe_path), swat_msg['exe'], exe_path_msg)
 
   # check what's loaded
-  f_check = c(cio='file.cio', time='time.sim', print='print.prt', climate='weather-sta.cli')
   is_loaded = .db$is_file_loaded(f_check)
 
   # print file info message
@@ -104,10 +110,10 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
     {
       # check if all weather files are loaded
       dates_result = rswat_weather_dates(lazy = TRUE, .db = .db)
-      is_all_loaded = ifelse(all(is.na(dates_result)), TRUE, !any(dates_result == -1, na.rm=TRUE))
+      #is_all_loaded = ifelse(all(is.na(dates_result)), TRUE, !any(dates_result == -1, na.rm=TRUE))
 
       # this message possibly spans multiple lines
-      swat_msg['climate'] = ok_char[ifelse(is_all_loaded, 'yes', 'no')] |>
+      swat_msg['climate'] = ok_char['yes'] |>
         paste( rswat_truncate_txt(show_mat['climate', 'txt'], n_head, just='right') ) |>
         paste( rswat_weather_report(lazy=FALSE, n_head=n_head, quiet=TRUE, .db=.db) )
 
@@ -134,10 +140,14 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
   cat(paste0(swat_msg['time'], '\n', swat_msg['print'], '\n'))
   message(hbreak_msg)
 
-  # print file.cio info
+  # finish with file.cio info
   cat(swat_msg['cio'], '\n')
   if( !is.null(unknown_msg) ) message(unknown_msg)
+  msg_empty = 'file.cio was not found in current directory. Import a project with rswat_copy'
+  if(!is_found['cio']) message(msg_empty)
+
   return(invisible())
+
 }
 
 
@@ -166,18 +176,6 @@ rswat_weather_report = function(lazy = TRUE,
     if( !.db$is_file_loaded(f_sta) ) stop(paste(f_sta, 'not loaded'))
   }
 
-  # prefix for sub-headings
-  sub_nm = c('wgn', 'sta')
-  msg_sub_prefix = paste(ok_char['sub'], paste0(sub_nm, ':')) |>
-    rswat_truncate_txt(n_head + 2L, just='right') |>
-    stats::setNames(sub_nm)
-
-  # initialize three part message
-  msg_weather = paste(nrow(.db$get_stor_df(f_sta)[[1L]]), 'stations in', f_sta)
-  msg_simulated = paste(msg_sub_prefix['wgn'], 'simulating none')
-  msg_observed = paste(msg_sub_prefix['sta'], 'none loaded')
-  msg_no_load = paste(c(msg_weather, msg_simulated, msg_observed), collapse='\n')
-
   # collect the date ranges for each file group (-1 for failure, NA for simulated)
   dates_df = rswat_weather_dates(lazy=lazy, .db=.db)
   v_nm = names(dates_df)
@@ -185,6 +183,19 @@ rswat_weather_report = function(lazy = TRUE,
   # check for weather generator prompts and groups not yet loaded
   is_loaded = !sapply(dates_df, is.integer)
   is_simulated = sapply(dates_df, anyNA)
+  stations_loaded = !is_simulated & is_loaded
+
+  # prefix for sub-headings
+  sub_nm = c('wgn', 'sta')
+  msg_sub_prefix = ok_char[ifelse(c(TRUE, all(is_loaded)), 'sub', 'no')] |>
+    paste(paste0(sub_nm, ':')) |>
+    rswat_truncate_txt(n_head + 2L, just='right') |>
+    stats::setNames(sub_nm)
+
+  # initialize three part message
+  msg_weather = paste(nrow(.db$get_stor_df(f_sta)[[1L]]), 'stations in', f_sta)
+  msg_simulated = paste(msg_sub_prefix['wgn'], 'simulating none')
+  msg_observed = paste(msg_sub_prefix['sta'], 'none loaded')
 
   # update the simulation message
   if( any(is_simulated) )
@@ -195,7 +206,7 @@ rswat_weather_report = function(lazy = TRUE,
 
   # update the stations message
   is_loaded_station = !is_simulated & is_loaded
-  if( !any(is_loaded_station) )
+  if( !any(stations_loaded) )
   {
     # update message with variable names
     msg_observed = msg_sub_prefix['sta'] |>
@@ -205,17 +216,17 @@ rswat_weather_report = function(lazy = TRUE,
   } else {
 
     # build message about full date range
-    dates_range = dates_df[, is_loaded_station, drop=FALSE] |> as.matrix() |> range()
+    dates_range = dates_df[, stations_loaded, drop=FALSE] |> as.matrix() |> range()
     msg_period = paste('[', paste(dates_range, collapse=' to '), ']')
 
     # identify variables spanning full date range
-    is_full = apply(dates_df[, is_loaded_station, drop=FALSE] == dates_range, 2L, all)
+    is_full = apply(dates_df[, stations_loaded, drop=FALSE] == dates_range, 2L, all)
 
-    # message about variables spanning subset of full range
-    msg_v_partial = paste(v_nm[is_loaded_station][!is_full], collapse=', ')
+    # string listing variables spanning subset of full range
+    msg_v_partial = paste(v_nm[stations_loaded][!is_full], collapse=', ')
 
     # message about these variables
-    msg_v_full = paste(v_nm[is_loaded_station][is_full], collapse=', ')
+    msg_v_full = paste(v_nm[stations_loaded][is_full], collapse=', ')
     msg_observed = msg_sub_prefix['sta'] |>
       paste(msg_period) |>
       paste('for', msg_v_full) |>
@@ -376,8 +387,11 @@ rswat_sim_dates = function(lazy=TRUE, prt=FALSE, render=TRUE, .db=.rswat_db) {
 #'
 #' @return a character string to print on the console (with `base::cat`)
 #' @export
-rswat_report_outputs = function(lazy=TRUE, n_head=10L, ok_char=.rswat_ok_char(), .db=.rswat_db)
-{
+rswat_report_outputs = function(lazy = TRUE,
+                                n_head = 10L,
+                                ok_char = .rswat_ok_char(),
+                                .db = .rswat_db) {
+
   # return empty character when print.prt not loaded and lazy=FALSE
   f = 'print.prt'
   if( !lazy & !.db$is_file_loaded(f) ) return(chracter(0))
@@ -404,8 +418,9 @@ rswat_report_outputs = function(lazy=TRUE, n_head=10L, ok_char=.rswat_ok_char(),
   outputs_msg[ outputs_n == nrow(outputs_table) ] = 'all'
 
   # build output string with one line per category
-  outputs_msg_list = paste(ok_char['sub'], paste0(names(outputs_msg), ':')) |>
-    rswat_truncate_txt(n_head + 2L, just='right') |>
+  outputs_msg_list = ok_char['sub'] |>
+    paste( rswat_truncate_txt(paste0(names(outputs_msg), ':'), just='right') ) |>
+    rswat_truncate_txt(n_head + 2L, just='right', trim=FALSE) |>
     paste(outputs_msg)
   return(paste(outputs_msg_list, collapse='\n'))
 }

@@ -81,12 +81,26 @@ rswat_find = function(pattern = '*',
       f_available = .db$get_loaded_files()
       is_f_alone = all(f_available %in% f)
 
-      # only file.cio is available
+      # only file.cio is available?
       if(!is_f_alone) { message('no variables to display in file.cio') } else {
 
-        # guidance for users who haven't loaded any files yet
-        message('load a file with rswat_open to make it searchable with rswat_find')
-        message(paste('rswat knows about', .db$report_known_files(), 'but only file.cio is loaded'))
+        # check for empty directory
+        f_known = .db$report_known_files()
+        if( length(f_known) == 0L ) {
+
+          message('current project directory is empty. Import a project with rswat_copy')
+
+        } else {
+
+          # otherwise print more info if file.cio can be found
+          if( 'file.cio' %in% f_known ) {
+
+            # guidance for users who haven't loaded any files yet
+            message('load a file with rswat_open to make it searchable with rswat_find')
+            message(paste('rswat knows about', .db$report_known_files(), 'but only file.cio is loaded'))
+
+          }
+        }
       }
     }
 

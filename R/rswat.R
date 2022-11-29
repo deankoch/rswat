@@ -80,33 +80,15 @@ rswat = function(swat_dir = NULL,
   # load other files on request
   if( !is.null(include) )
   {
-    # process shorthand in 'include'
-    if( length(include) == 1L ) include = .rswat_gv_include_lu(include)
-
-    # include has precedence over exclude in conflicts
-    is_conflicted = exclude %in% include
-    if( any(is_conflicted) ) exclude = exclude[!is_conflicted]
-
-    # get a data frame of available files
-    f_df = rswat_files(loaded = NA,
-                       known = TRUE,
-                       what = c('file', 'group', 'type', 'exists', 'loaded'),
-                       n = NULL,
-                       refresh = FALSE,
-                       quiet = TRUE,
-                       .db = .db)
-
-    # identify rows to include
-    is_excluded = apply(f_df, 1L, \(x) any(x %in% exclude) )
-    is_included = apply(f_df, 1L, \(x) any(x %in% include) )
-    is_needed = is_included & !is_excluded & f_df[['exists']] & !f_df[['loaded']]
-    if( refresh ) is_needed = is_needed & !f_df[['loaded']]
+    file_df = rswat_files(include=include, exclude=exclude, refresh=FALSE, quiet=TRUE, .db=.db)
+    is_needed = file_df[['exists']] & !file_df[['loaded']]
+    if( refresh ) is_needed = is_needed & !file_df[['loaded']]
 
     # load included files or else warn if there aren't any left after exclusions
-    if( !any(is_needed))  { if(!quiet) message('no additional files loaded') } else {
+    if( !any(is_needed))  { if(!quiet) message('all requested files loaded') } else {
 
       if(!quiet) message(paste('loading files from:', swat_dir))
-      rswat_open(f_df[['file']][is_needed], refresh=refresh, quiet=quiet)
+      rswat_open(file_df[['file']][is_needed], refresh=refresh, quiet=quiet)
     }
   }
 
@@ -187,6 +169,7 @@ rswat_open = function(f = NULL,
 
     # attempt open the known files then check for success
     .db$open_config_batch(f[is_known], refresh=refresh, update_stats=update_stats, quiet=quiet)
+    if(!quiet) cat('\n')
     is_loaded = .db$is_file_loaded(f)
 
     # return everything that was successfully loaded, collapsing length-1 lists
@@ -213,7 +196,7 @@ rswat_open = function(f = NULL,
 
   # report load failures
   is_failed = is_known & !is_loaded
-  if(!quiet & any(is_failed)) warning(paste0('rswat failed to load ',
+  if(!quiet & any(is_failed)) message(paste0('rswat failed to load ',
                                              paste(f[is_failed], collapse=', '),
                                              '\n View the first error message with ',
                                              'rswat_files(',
@@ -264,6 +247,8 @@ rswat_open = function(f = NULL,
 rswat_files = function(pattern = NA,
                        loaded = NA,
                        known = NA,
+                       include = NULL,
+                       exclude = NULL,
                        what = NULL,
                        n = NULL,
                        refresh = TRUE,
@@ -276,6 +261,29 @@ rswat_files = function(pattern = NA,
 
   # copy requested subset of files data frame
   files_df = .db$get_cio_df()
+  if( is.null(what) ) what = seq_along(files_df)
+
+  # keep only subset of rows referred to by include and not exclude
+  if( !is.null(include) )
+  {
+    # process shorthand in 'include'
+    if( length(include) == 1L ) include = .rswat_gv_include_lu(include)
+
+    # include has precedence over exclude in conflicts
+    is_conflicted = exclude %in% include
+    if( any(is_conflicted) ) exclude = exclude[!is_conflicted]
+    is_excluded = apply(files_df, 1L, \(x) any(x %in% exclude) )
+    is_included = apply(files_df, 1L, \(x) any(x %in% include) )
+    is_left = is_included & !is_excluded
+    files_df = files_df[is_left, , drop=FALSE]
+
+    # warn if there aren't any left after exclusions
+    if( !any(is_left) )
+    {
+      if(!quiet) message('All files excluded. Try exclude=NULL?')
+      return( files_df[, what, drop=FALSE] )
+    }
+  }
 
   # check for matches against file names and return them
   is_exact = files_df[['file']] %in% pattern
@@ -297,7 +305,6 @@ rswat_files = function(pattern = NA,
   }
 
   # subset of results
-  if( is.null(what) ) what = seq_along(files_df)
   files_df = files_df[!is_omitted, what, drop=FALSE]
   row.names(files_df) = NULL
 

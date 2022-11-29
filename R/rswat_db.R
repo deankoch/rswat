@@ -191,7 +191,7 @@ rswat_db = setRefClass('rswat_db',
       if(is.na(swat_dir)) stop('project directory must be assigned first')
       new_cio_df = rswat_scan_dir(swat_dir, cio_df)
       cio_df <<- new_cio_df
-      rownames(cio_df) <<- seq(nrow(cio_df))
+      if(nrow(cio_df) > 0L) rownames(cio_df) <<- seq(nrow(cio_df))
     },
 
     # append metadata for any loaded files to cio_df
