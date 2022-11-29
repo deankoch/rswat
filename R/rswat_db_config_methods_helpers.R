@@ -1,19 +1,25 @@
 
 #' Scan a SWAT+ project directory
 #'
-#' Looks for files in the supplied `swat_dir` and builds a data frame listing them
-#' along with some OS file info (size, etc) and internal flags. Files are labelled
-#' according to known SWAT+ file extension patterns.
+#' Looks for files in the supplied `swat_dir` using `base::list.files(swat_dir)` and
+#' builds a data frame listing them, along with their size and date modified (as reported
+#' by the OS), and some internal flags.
 #'
-#' An existing data frame, `cio_df`, can be supplied to list files not found on disk
-#' alongside the ones detected by `base::list.files`
+#' An existing data frame, `cio_df`, can be supplied to merge an existing list of files
+#' (not found on disk, or in a different directory). All files are labelled according to
+#' known SWAT+ file extension patterns.
 #'
-#' @param swat_dir path to the directory containing SWAT+ config files
-#' @param cio_df optional data frame structured like the output of `rswat_scan_dir()`
+#' Alternatively, supply a list of file names in `f` to skip both the `list.files` call
+#' and the OS file info calls that rely on paths. This is useful for classifying arbitrary
+#' lists of files with unspecified locations.
 #'
-#' @return a data frame with a list of file info for `swat_dir`
+#' @param swat_dir character, the path to the directory containing SWAT+ config files
+#' @param cio_df data frame, structured like the output of `rswat_scan_dir()`
+#' @param f character vector, file names to classify (instead of those found in `swat_dir`)
+#'
+#' @return a data frame with a list of file info
 #' @export
-rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
+rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL, f=NULL)
 {
   # set up default column names and types
   if( is.null(cio_df) )
@@ -40,8 +46,13 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
   # if no directory supplied, we are finished
   if( is.null(swat_dir) ) return(cio_df)
 
-  # scan for files then join with any previous results
-  cio_new = data.frame(file=list.files(swat_dir)) |>
+  # scan for files on request
+  all_files = f
+  is_scanned = is.null(all_files)
+  if(is_scanned) all_files = list.files(swat_dir)
+
+  # join with any previous results
+  cio_new = data.frame(file=all_files) |>
     dplyr::mutate( known = FALSE ) |>
     dplyr::mutate( loaded = FALSE ) |>
     dplyr::mutate( error = FALSE ) |>
@@ -52,9 +63,12 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL)
     dplyr::mutate( exists = file.exists(path) )
 
   # add the size and time modified for each file on disk
-  finfo = file.info(cio_new[['path']])
-  cio_new[['size']] = units::set_units(units::set_units(finfo[['size']], bytes), kilobytes)
-  cio_new[['modified']] = finfo[['mtime']]
+  if(is_scanned)
+  {
+    finfo = file.info(cio_new[['path']])
+    cio_new[['size']] = units::set_units(units::set_units(finfo[['size']], bytes), kilobytes)
+    cio_new[['modified']] = finfo[['mtime']]
+  }
 
   # tags for SWAT+ file type
   type_lu = .rswat_gv_type_lu()
