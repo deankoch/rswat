@@ -4,22 +4,29 @@
 \alias{rswat_scan_dir}
 \title{Scan a SWAT+ project directory}
 \usage{
-rswat_scan_dir(swat_dir = NULL, cio_df = NULL)
+rswat_scan_dir(swat_dir = NULL, cio_df = NULL, f = NULL)
 }
 \arguments{
-\item{swat_dir}{path to the directory containing SWAT+ config files}
+\item{swat_dir}{character, the path to the directory containing SWAT+ config files}
 
-\item{cio_df}{optional data frame structured like the output of \code{rswat_scan_dir()}}
+\item{cio_df}{data frame, structured like the output of \code{rswat_scan_dir()}}
+
+\item{f}{character vector, file names to classify (instead of those found in \code{swat_dir})}
 }
 \value{
-a data frame with a list of file info for \code{swat_dir}
+a data frame with a list of file info
 }
 \description{
-Looks for files in the supplied \code{swat_dir} and builds a data frame listing them
-along with some OS file info (size, etc) and internal flags. Files are labelled
-according to known SWAT+ file extension patterns.
+Looks for files in the supplied \code{swat_dir} using \code{base::list.files(swat_dir)} and
+builds a data frame listing them, along with their size and date modified (as reported
+by the OS), and some internal flags.
 }
 \details{
-An existing data frame, \code{cio_df}, can be supplied to list files not found on disk
-alongside the ones detected by \code{base::list.files}
+An existing data frame, \code{cio_df}, can be supplied to merge an existing list of files
+(not found on disk, or in a different directory). All files are labelled according to
+known SWAT+ file extension patterns.
+
+Alternatively, supply a list of file names in \code{f} to skip both the \code{list.files} call
+and the OS file info calls that rely on paths. This is useful for classifying arbitrary
+lists of files with unspecified locations.
 }

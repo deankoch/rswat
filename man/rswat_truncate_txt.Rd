@@ -9,7 +9,8 @@ rswat_truncate_txt(
   max_len = NULL,
   NA_char = "~",
   more_char = "...",
-  just = "left"
+  just = "left",
+  trim = TRUE
 )
 }
 \arguments{
@@ -20,6 +21,8 @@ rswat_truncate_txt(
 \item{NA_char}{character, string to print in place of \code{NA}s}
 
 \item{more_char}{character, string to indicate that a field has been shortened}
+
+\item{trim}{logical, indicates to remove redundant whitespace (see details)}
 }
 \value{
 character vector or data frame (the same length as \code{txt})

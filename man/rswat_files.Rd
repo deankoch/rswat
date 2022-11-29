@@ -8,6 +8,8 @@ rswat_files(
   pattern = NA,
   loaded = NA,
   known = NA,
+  include = NULL,
+  exclude = NULL,
   what = NULL,
   n = NULL,
   refresh = TRUE,
