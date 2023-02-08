@@ -2,9 +2,10 @@
 
 # TODO add backup detector
 
+# keyword as shorthand for a useful group of file types to load
 .rswat_gv_include_lu = function(include) switch(include,
                                                 'basic' = c('simulation', 'climate'),
-                                                'default' = c('config', .rswat_gv_include_lu('basic')),
+                                                'default' = 'config',
                                                 'more' = c('weather', .rswat_gv_include_lu('normal')),
                                                 'all' = c('output', .rswat_gv_include_lu('full')),
                                                 include)
@@ -26,7 +27,8 @@
 # regex strings to use for organizing SWAT+ files into groups (called in rswat_scan_dir)
 .rswat_gv_type_lu = function() {
 
-  rbind(c('file\\.cio', 'config'),
+  rbind(c('^.rswat_backup', 'backup'),
+        c('file\\.cio', 'config'),
         c('object\\.prt', 'config'),
         c('\\.input', 'gwflow'),
         c('\\.rivcells', 'gwflow'),

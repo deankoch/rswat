@@ -123,8 +123,8 @@ rswat_open = function(f = NULL,
   if( is.na(.db$get_swat_dir()) ) stop('Set the project directory first with rswat(swat_dir)')
 
   # when called without arguments, return a list of known config files
-  if( is.null(f) )
-  {
+  if( is.null(f) ) {
+
     # load the valid file name choices
     f_available = rswat_files(known = TRUE,
                               what = c('file', 'loaded'),
@@ -134,8 +134,8 @@ rswat_open = function(f = NULL,
                               .db = .db)
 
     # print choices
-    if(!quiet)
-    {
+    if(!quiet) {
+
       # print a message about loaded and not-loaded files
       msg_loaded = paste(f_available[['file']][ f_available[['loaded']] ], collapse=', ')
       msg_not_loaded = paste(f_available[['file']][ !f_available[['loaded']] ], collapse=', ')
@@ -144,8 +144,8 @@ rswat_open = function(f = NULL,
       message('select a file...')
       message(ifelse(all_loaded, 'all files loaded:', 'loaded:'))
       cat(paste0(msg_loaded, '\n'))
-      if(!all_loaded)
-      {
+      if(!all_loaded) {
+
         message('not loaded:')
         cat(paste0(msg_not_loaded, '\n'))
       }
@@ -173,8 +173,8 @@ rswat_open = function(f = NULL,
     is_loaded = .db$is_file_loaded(f)
 
     # return everything that was successfully loaded, collapsing length-1 lists
-    if(output)
-    {
+    if(output) {
+
       list_out = .db$get_stor_df(f[is_loaded])
       if(length(list_out) == 1L) list_out = list_out[[1]]
     }
@@ -182,8 +182,8 @@ rswat_open = function(f = NULL,
   } else {
 
     # print suggestions if the file is not known to rswat
-    if(!is_known)
-    {
+    if(!is_known) {
+
       if(!quiet) rswat_find(f=f)
       return(list())
     }
@@ -263,26 +263,24 @@ rswat_files = function(pattern = NA,
   files_df = .db$get_cio_df()
   if( is.null(what) ) what = seq_along(files_df)
 
-  # keep only subset of rows referred to by include and not exclude
-  if( !is.null(include) )
-  {
-    # process shorthand in 'include'
-    if( length(include) == 1L ) include = .rswat_gv_include_lu(include)
+  # set defaults and translate shorthand for 'include'
+  if( is.null(include) ) include = files_df[['file']]
+  if( length(include) == 1L ) include = .rswat_gv_include_lu(include)
 
-    # include has precedence over exclude in conflicts
-    is_conflicted = exclude %in% include
-    if( any(is_conflicted) ) exclude = exclude[!is_conflicted]
-    is_excluded = apply(files_df, 1L, \(x) any(x %in% exclude) )
-    is_included = apply(files_df, 1L, \(x) any(x %in% include) )
-    is_left = is_included & !is_excluded
-    files_df = files_df[is_left, , drop=FALSE]
+  # include has precedence over exclude in conflicts
+  nm_check = c('file', 'type', 'group')
+  is_conflicted = exclude %in% include
+  if( any(is_conflicted) ) exclude = exclude[!is_conflicted]
+  is_excluded = apply(files_df[nm_check], 1L, \(x) any(x %in% exclude) )
+  is_included = apply(files_df[nm_check], 1L, \(x) any(x %in% include) )
+  is_left = is_included & !is_excluded
+  files_df = files_df[is_left, , drop=FALSE]
 
-    # warn if there aren't any left after exclusions
-    if( !any(is_left) )
-    {
-      if(!quiet) message('All files excluded. Try exclude=NULL?')
-      return( files_df[, what, drop=FALSE] )
-    }
+  # warn if there aren't any left after exclusions
+  if( !any(is_left) ) {
+
+    if(!quiet) message('All files excluded. Try exclude=NULL?')
+    return( files_df[, what, drop=FALSE] )
   }
 
   # check for matches against file names and return them
@@ -293,8 +291,8 @@ rswat_files = function(pattern = NA,
     is_omitted = logical( nrow(files_df) )
     if( !is.na(loaded) ) is_omitted = is_omitted | ( files_df[['loaded']] != loaded )
     if( !is.na(known) ) is_omitted = is_omitted | ( files_df[['known']] != known )
-    if( !is.na(pattern) )
-    {
+    if( !is.na(pattern) ) {
+
       # look for matches
       is_match = apply(files_df[c('group', 'type')], 1L, \(x) any(x == pattern))
       is_omitted = is_omitted | !is_match

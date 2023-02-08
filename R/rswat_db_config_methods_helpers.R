@@ -49,7 +49,7 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL, f=NULL)
   # scan for files on request
   all_files = f
   is_scanned = is.null(all_files)
-  if(is_scanned) all_files = list.files(swat_dir)
+  if(is_scanned) all_files = list.files(swat_dir, all.files=TRUE, no..=TRUE)
 
   # join with any previous results
   cio_new = data.frame(file=all_files) |>
