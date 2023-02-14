@@ -16,7 +16,7 @@
 # characters for show method of rswat_db
 #.rswat_ok_char = function() c(yes='\U25B7', fail='\U25C9', no='\U25B6', sub='\U25B9')
 #.rswat_ok_char = function() c(yes='\U25C6', fail='!', no='\U25C7', sub='\U25B9')
-.rswat_ok_char = function() c(yes='\U25E6',
+.rswat_ok_char = function() c(yes='\U2192',
                               sub='\U2937',
                               no='\U25CB',
                               fail='!')
@@ -66,15 +66,20 @@
 }
 
 
-# attributes to display in default calls to rswat_files
+# column order for rswat_files
 .rswat_gv_cio_show = function() c('file',
-                                  'type',
                                   'group',
-                                  'loaded',
-                                  'n_table',
+                                  'type',
+                                  'groups', # plural case used by rswat_summary
+                                  'files',
                                   'n_line',
                                   'n_var',
-                                  'size')
+                                  'n_table',
+                                  'size',
+                                  'modified',
+                                  'known',
+                                  'loaded',
+                                  'exists')
 
 .rswat_gv_match_docs_trim = function(trim) switch(trim,
 

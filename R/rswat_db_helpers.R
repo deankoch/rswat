@@ -26,29 +26,29 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
                   exe = c('simulator:', 'not assigned'),
                   time = c('time.sim:', miss_msg['time']),
                   print = c('print.prt:', miss_msg['print']),
-                  cio = c('file.cio:', paste0(miss_msg['cio'], '\n')),
+                  cio = c('file.cio:', paste0(miss_msg['cio'])),
                   climate = c('climate:', paste('weather-sta.cli', miss_msg['climate']))) |>
     data.frame() |> t()
 
   # initialize headers and align to common width
   colnames(show_mat) = c('txt', 'alt')
-  n_head = max(nchar(show_mat[, 'txt']))
+  n_head = 1L + max(nchar(show_mat[, 'txt']))
   swat_msg = ok_char[ifelse(is_found[rownames(show_mat)], 'no', 'fail')] |>
     paste(rswat_truncate_txt(show_mat[,'txt'], n_head, just='right')) |>
     paste(show_mat[,'alt']) |>
     stats::setNames( rownames(show_mat) )
-
-  # build message about SWAT directory
-  swat_dir = .db$get_swat_dir()
-  swat_dir_msg = ok_char['yes'] |>
-    paste( rswat_truncate_txt(show_mat['dir', 'txt'], n_head, just='right') ) |>
-    paste(swat_dir)
 
   # build message about executable path
   exe_path = .db$get_exe_path()
   exe_path_msg = ok_char['yes'] |>
     paste( rswat_truncate_txt(show_mat['exe', 'txt'], n_head, just='right') ) |>
     paste(exe_path)
+
+  # build message about SWAT directory
+  swat_dir = .db$get_swat_dir()
+  swat_dir_msg = ok_char['yes'] |>
+    paste( rswat_truncate_txt(show_mat['dir', 'txt'], n_head, just='right') ) |>
+    paste(swat_dir)
 
   # update messages about paths
   swat_msg['dir'] = ifelse(is.na(swat_dir), swat_msg['dir'], swat_dir_msg)
@@ -61,8 +61,8 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
   if( is_loaded['file.cio'] )
   {
     # create the file.cio message
-    swat_msg['cio'] = ok_char['yes'] |>
-      paste( rswat_truncate_txt(show_mat['cio', 'txt'], n_head, just='right') ) |>
+    swat_msg['cio'] = paste0(' ', ok_char['sub']) |>
+      paste( rswat_truncate_txt(show_mat['cio', 'txt'], n_head - 1L, just='right') ) |>
       paste('lists', .db$report_known_files(), '\n')
 
     # create two time period messages
@@ -91,8 +91,8 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
         } else {
 
           # append a string indicating the time period to simulate
-          swat_msg[nm] = ok_char['yes'] |>
-            paste( rswat_truncate_txt(show_mat[nm, 'txt'], n_head, just='right') ) |>
+          swat_msg[nm] = paste0(' ', ok_char['sub']) |>
+            paste( rswat_truncate_txt(show_mat[nm, 'txt'], n_head-1L, just='right') ) |>
             paste(msg_time)
 
           # append four more lines to denote output file groups
@@ -113,8 +113,8 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
       #is_all_loaded = ifelse(all(is.na(dates_result)), TRUE, !any(dates_result == -1, na.rm=TRUE))
 
       # this message possibly spans multiple lines
-      swat_msg['climate'] = ok_char['yes'] |>
-        paste( rswat_truncate_txt(show_mat['climate', 'txt'], n_head, just='right') ) |>
+      swat_msg['climate'] = paste('  ', ok_char['sub']) |>
+        paste( rswat_truncate_txt(show_mat['climate', 'txt'], n_head-3L, just='right') ) |>
         paste( rswat_weather_report(lazy=FALSE, n_head=n_head, quiet=TRUE, .db=.db) )
 
     }
@@ -126,25 +126,28 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
   }
 
   # line break string to separate categories
-  hbreak_msg = paste(c(rep(' ', 2L), rep('-', n_head)), collapse='')
+  hbreak_msg = paste(c(rep(' ', 3L), rep('-', n_head-2L)), collapse='')
 
   # print paths
-  message('rswat')
-  message(hbreak_msg)
-  cat(paste0(swat_msg['dir'], '\n', swat_msg['exe'], '\n'))
-  message(hbreak_msg)
+  message('rswat summary')
+  #message(hbreak_msg)
+  cat(paste0(swat_msg['exe'], '\n', swat_msg['dir'], '\n'))
+  cat(hbreak_msg, '\n')
+  #message(hbreak_msg)
 
-  # print weather and simulation dates info
-  cat(swat_msg['climate'], '\n')
-  message(hbreak_msg)
-  cat(paste0(swat_msg['time'], '\n', swat_msg['print'], '\n'))
-  message(hbreak_msg)
-
-  # finish with file.cio info
-  cat(swat_msg['cio'], '\n')
+  # print file.cio info
+  cat(swat_msg['cio'])
   if( !is.null(unknown_msg) ) message(unknown_msg)
   msg_empty = 'file.cio was not found in current directory. Import a project with rswat_copy'
   if(!is_found['cio']) message(msg_empty)
+
+  # print weather and simulation dates info
+  cat(swat_msg['climate'], '\n')
+  #message(hbreak_msg)
+  cat(paste0(swat_msg['time'], '\n', swat_msg['print'], '\n\n'))
+  #message(hbreak_msg)
+
+
 
   return(invisible())
 

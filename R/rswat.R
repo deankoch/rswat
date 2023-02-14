@@ -87,7 +87,7 @@ rswat = function(swat_dir = NULL,
     # load included files or else warn if there aren't any left after exclusions
     if( !any(is_needed))  { if(!quiet) message('all requested files loaded') } else {
 
-      if(!quiet) message(paste('loading files from:', swat_dir))
+      #if(!quiet) message(paste('loading files from:', swat_dir))
       rswat_open(file_df[['file']][is_needed], refresh=refresh, quiet=quiet)
     }
   }
@@ -127,8 +127,6 @@ rswat_open = function(f = NULL,
 
     # load the valid file name choices
     f_available = rswat_files(known = TRUE,
-                              what = c('file', 'loaded'),
-                              n = NA,
                               refresh = refresh,
                               quiet = TRUE,
                               .db = .db)
@@ -213,57 +211,42 @@ rswat_open = function(f = NULL,
 }
 
 
-#' Return a data frame of information about SWAT+ files
+#' Return a tibble with information about SWAT+ files
 #'
-#' If `pattern` is the name of a file in the SWAT+ project directory, the function
-#' returns a one-row data frame with information about the file. If `pattern` is `NA`,
-#' information on all files is returned. Otherwise all matches of `pattern` against
-#' 'group' and 'type' are returned.
+#' By default (`pattern=NA`) the function returns information on all files in the current
+#' `rswat` project directory. Set `pattern` to the name of a file, group, or type, to
+#' return information on those files only.
 #'
-#' `loaded` and `known` have no effect when set to `NA`, or when `pattern` is a file
-#' name. Otherwise they control the subset of results to return. `loaded=TRUE`
-#' restricts to files loaded already, and `loaded=FALSE` restricts to those not loaded.
-#' `known=TRUE` restricts results to file types known to `rswat` (based on file name
-#' and extension) and `known=FALSE` returns only unrecognized files.
+#' Aggregate results by changing `level` from 'file' to 'group' or 'type'.
 #'
-#' `what` controls which columns to return. Call `.rswat_gv_cio_show()` to see the
-#' defaults, or `names(rswat_files(what=NULL))` to see all options.
-#'
-#' By default at most `n=15` rows are printed for tidiness, but the entire set of
-#' results is returned invisibly. Set `quiet=TRUE` to print nothing.
+#' Filter results by specifying specific file name(s), group(s), or type(s) in
+#' `include` and/or `exclude`. By default all files are included. Set `known=TRUE` to
+#' exclude files unknown to `rswat` based on file name(s) and extension(s). Set it to
+#' `FALSE` to exclude recognized files and how only unrecognized ones.
 #'
 #' @param pattern character, the file name, group, or type of file
-#' @param type character, one of 'config' (the default)...
-#' @param what character vector, the column(s) to select
-#' @param loaded logical, indicates to only search among loaded files
+#' @param level character, either 'file', 'type', or 'group'
 #' @param known logical, indicates to only search among recognized files
-#' @param n integer, the maximum number of results to print
-#' @param quiet logical, suppresses console output
 #' @param refresh logical, indicates to first re-scan the directory
+#' @param quiet logical, suppresses console output
 #' @param .db rswat_db object, for internal use
 #'
-#' @return the requested data frame or vector, a subset of `cio`
+#' @return a tibble summarizing the requested files
 #' @export
 rswat_files = function(pattern = NA,
-                       loaded = NA,
-                       known = NA,
+                       level = 'file',
                        include = NULL,
                        exclude = NULL,
-                       what = NULL,
-                       n = NULL,
+                       known = NA,
                        refresh = TRUE,
-                       summarize = 'file',
                        quiet = FALSE,
                        .db = .rswat_db) {
 
-  # refresh files list
+  # refresh files list and get a complete copy of files data frame
   if(refresh) rswat(swat_dir=.db$get_swat_dir(), include=NULL, quiet=TRUE, .db=.db)
-
-  # copy requested subset of files data frame
   files_df = .db$get_cio_df()
-  if( is.null(what) ) what = seq_along(files_df)
 
-  # set defaults and translate shorthand for 'include'
+  # translate shorthand keywords for 'include' or set default (all)
   if( is.null(include) ) include = files_df[['file']]
   if( length(include) == 1L ) include = .rswat_gv_include_lu(include)
 
@@ -271,25 +254,33 @@ rswat_files = function(pattern = NA,
   nm_check = c('file', 'type', 'group')
   is_conflicted = exclude %in% include
   if( any(is_conflicted) ) exclude = exclude[!is_conflicted]
+
+  # apply both filters and overwrite files_df with result
   is_excluded = apply(files_df[nm_check], 1L, \(x) any(x %in% exclude) )
   is_included = apply(files_df[nm_check], 1L, \(x) any(x %in% include) )
   is_left = is_included & !is_excluded
   files_df = files_df[is_left, , drop=FALSE]
 
-  # warn if there aren't any left after exclusions
+  # warn if 0 results after filtering
   if( !any(is_left) ) {
 
-    if(!quiet) message('All files excluded. Try exclude=NULL?')
-    return( files_df[, what, drop=FALSE] )
+    # returns empty tibble with correct column names
+    if(!quiet) message('All files excluded. Try setting include=NULL and/or exclude=NULL')
+
+    # reorder columns for output
+    return(rswat_summarize_files(files_df, level, quiet, .db))
   }
 
-  # check for matches against file names and return them
-  is_exact = files_df[['file']] %in% pattern
-  if( any(is_exact) ) { is_omitted = !is_exact } else {
+  # first check for matches against file names
+  is_omitted = !( files_df[['file']] %in% pattern )
 
-    # no exact matches - build an index of results to exclude
-    is_omitted = logical( nrow(files_df) )
-    if( !is.na(loaded) ) is_omitted = is_omitted | ( files_df[['loaded']] != loaded )
+  # if no exact matches we look for approximate matches
+  if( all(is_omitted) ) {
+
+    # initialize to omit none
+    is_omitted = !is_omitted
+
+    # build an index of results to filter
     if( !is.na(known) ) is_omitted = is_omitted | ( files_df[['known']] != known )
     if( !is.na(pattern) ) {
 
@@ -298,21 +289,16 @@ rswat_files = function(pattern = NA,
       is_omitted = is_omitted | !is_match
     }
 
-    # handle files with NA group or type
+    # this handles files with NA group or type
     is_omitted[ is.na(is_omitted) ] = TRUE
   }
 
-  # subset of results
-  files_df = files_df[!is_omitted, what, drop=FALSE]
+  # filter to matches with pattern
+  files_df = files_df[!is_omitted,]
   row.names(files_df) = NULL
 
-  # summarize on request and return as tibble either way
-  return(rswat_summarize_files(files_df = files_df,
-                               loaded = loaded,
-                               known = known,
-                               n = n,
-                               level = summarize,
-                               quiet = quiet))
+  # summarize by level and reorder columns for output
+  return(rswat_summarize_files(files_df, level, quiet, .db))
 }
 
 
@@ -323,48 +309,43 @@ rswat_files = function(pattern = NA,
 #' returns information about every file on its own row.
 #'
 #' With `level='group'` each group gets a row, indicating how many files there are
-#' and how many are loaded, along with a list of the file names (truncated to the
-#' console width, or `max_len` if it is assigned). `level='type'` does the same but
-#' with summaries of the four file types, and shows group names within each type
-#' category instead of file names.
-#'
-#' `n` controls the maximum number of rows to print in the console (all rows are
-#' returned invisibly by the function). `loaded` and `known` modify the message
-#' printed about the files.
+#' and how many are loaded, along with a list of the file names. `level='type'` does
+#' the same but with summaries of the four file types, and group names within each type
+#' category instead of file names. In both cases, the time modified field indicates the
+#' latest modification within the category
 #'
 #' @param files_df data frame, output from `rswat_files`
-#' @param loaded logical, indicates that the files are all loaded
-#' @param known logical, indicates that the files are all recognized by rswat
-#' @param n integer, the maximum number of results to print
-#' @param level character, what category to summarize over (see details)
+#' @param level character, the category to summarize over (see details)
+#' @param quiet logical, suppresses console messages
 #'
 #' @return returns a data frame invisibly, and prints the first `n` lines of it
 #' @export
 rswat_summarize_files = function(files_df,
-                                 loaded = NA,
-                                 known = NA,
-                                 n = NULL,
                                  level = 'file',
-                                 quiet = FALSE) {
+                                 quiet = FALSE,
+                                 .db = .rswat_db) {
+
+  # preferred column order for output
+  nm_print = .rswat_gv_cio_show()
 
   # handle empty data frames
   n_files = nrow(files_df)
   if( n_files == 0L ) {
 
     if(!quiet) message('no results')
-    return(dplyr::tibble())
+    return( dplyr::tibble(rswat_order_columns(files_df, nm_print)) )
   }
 
   # summarize groups
   if(level == 'group') files_df = files_df |>
-      dplyr::mutate(group = factor(group, levels=unique(group))) |>
-      dplyr::group_by(group) |>
-      dplyr::summarize(type = head(unique(type), 1L),
-                       loaded = paste0(sum(loaded), '/', dplyr::n()),
-                       size = sum(size, na.rm=TRUE),
-                       modified = max(modified, na.rm=TRUE),
-                       files = paste(file, collapse=', ')) |>
-      dplyr::mutate(group = as.character(group))
+    dplyr::mutate(group = factor(group, levels=unique(group))) |>
+    dplyr::group_by(group) |>
+    dplyr::summarize(type = head(unique(type), 1L),
+                     loaded = paste0(sum(loaded), '/', dplyr::n()),
+                     size = sum(size, na.rm=TRUE),
+                     modified = max(modified, na.rm=TRUE),
+                     files = paste(file, collapse=', ')) |>
+    dplyr::mutate(group = as.character(group))
 
   # summarize types
   if(level == 'type') files_df = files_df |>
@@ -376,22 +357,15 @@ rswat_summarize_files = function(files_df,
                        groups = paste(unique(group), collapse = ', ')) |>
       dplyr::mutate(type = as.character(type))
 
-  # when both loaded and known are TRUE (redundant), set known to NA to clean up message
-  known = ifelse(is.na(loaded), known, ifelse(loaded, NA, known))
-
-  # modifiers for message (gsub and outer paste convert NA to '')
-  msg_known = gsub('NA', '', paste( paste0(c(' un', ' '), 'known')[1L + known]))
-  msg_load = gsub('NA', '', paste( paste(c(' not', ''), 'currently loaded')[1L + loaded]))
+  # report the number of objects after summarization
   if(!quiet)
   {
-    # report the number of objects (after summarization) and return as tibble
     n_out = nrow(files_df)
-    msg_report = paste0(n_out, msg_known, ' ', level, '(s)', msg_load)
-    message(msg_report)
-    print(dplyr::tibble(files_df), n=n)
+    msg_level = paste0(level, ifelse(n_out > 0, 's', ''))
+    message(paste(n_out, msg_level, 'in', .db$get_swat_dir()))
   }
 
-  # in quiet mode return invisibly
-  return( invisible(dplyr::tibble(files_df)) )
+  # return as tibble with specified column order
+  return( dplyr::tibble(rswat_order_columns(files_df, nm_print)) )
 }
 

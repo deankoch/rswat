@@ -18,7 +18,7 @@ rswat_exec = function(quiet=FALSE, .db=.rswat_db) {
 
   # get the project directory and a copy of all output files
   swat_dir = .db$get_swat_dir()
-  old_output_files = rswat_files(what=NULL, quiet=TRUE, .db=.db)
+  old_output_files = rswat_files(quiet=TRUE, .db=.db)
 
   # get the simulator path
   exe_path = .db$get_exe_path()
@@ -39,7 +39,7 @@ rswat_exec = function(quiet=FALSE, .db=.rswat_db) {
 
   # scan for changes in directory and return list of files modified
   .db$refresh_cio_df()
-  new_output_files = rswat_files(what=NULL, quiet=TRUE, .db=.db)
+  new_output_files = rswat_files(quiet=TRUE, .db=.db)
   is_new = !( new_output_files[['file']] %in% old_output_files[['file']] )
   if( any(!is_new) )
   {
@@ -267,7 +267,7 @@ rswat_restore = function(backup = NULL,
 
   # copy current SWAT+ project directory and known file info
   swat_dir = .db$get_swat_dir()
-  existing_files = rswat_files(what=c('file', 'exists')) |> dplyr::filter(exists)
+  existing_files = rswat_files(.db=.db) |> dplyr::filter(exists)
   file_df = rswat_files(known = TRUE,
                         include = include,
                         exclude = c(exclude, 'backup'),
@@ -295,12 +295,10 @@ rswat_restore = function(backup = NULL,
 
     # get a list of files from the backup zip
     unzip_df = utils::unzip(backup, list=TRUE)[c('Name', 'Date')] |>
-      dplyr::rename(Name='file', Date='modified') |>
-      dplyr::mutate(file = basename(file))
+      dplyr::rename(path='Name', modified='Date') |>
+      dplyr::mutate(file = basename(path))
 
-
-
-    # exclude backups
+    # convert to standardized data frame of file info, and exclude backups
     backup_df = rswat_scan_dir(backup, f=unzip_df[['file']]) |>
       dplyr::mutate(modified = unzip_df[['modified']]) |>
       dplyr::filter(type != 'backup')
