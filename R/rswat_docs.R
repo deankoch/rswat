@@ -1,141 +1,124 @@
 
-
-
-#' Search variable names and description text in the SWAT+ I/O PDF
+#' Search variable names and description text in the SWAT+ inputs PDF
+#'
+#' Returns a tibble with SWA+ name/definition pairs matching `pattern`.
+#'
+#' The function uses `rswat_fuzzy_search` to look for parameter names containing
+#' the string `pattern`. If `pattern` exactly matches a SWAT+ file name, the function
+#' returns all known name/definition pairs for that file.
+#
+#' If `defs=TRUE` the function searches in definitions instead of names and file
+#' names are ignored. Increase `fuzzy` to get approximate results or set it to -1
+#' to get exact matches only (see `?rswat_fuzzy_search`).
 #'
 #' @param pattern character vector, the search keyword string
-#' @param f character vector, the file names (sections of document) to include in search
-#' @param fuzzy integer, controlling the number of results returned (see details)
-#' @param intro logical, if TRUE, prints the introductory text for a file
-#' @param descriptions logical, if TRUE, searches description text instead of variable names
-#' @param desc_len integer, maximum number description text characters to return (per variable)
-#' @param .db rswat_db object, for internal use
+#' @param fuzzy integer controlling the number of results returned (see `?rswat_fuzzy_search`)
+#' @param defs logical indicating to search definitions text instead of parameter names
+#' @param .db rswat_db object for internal use
 #'
-#' @return data frame containing search results and their location in the PDF
+#' @return tibble containing search results and their location in the PDF
 #' @export
-rswat_docs = function(name=NULL, f=NULL, quiet=FALSE, .db=.rswat_db)
-{
-  # check for valid input
-  if( length(f) > 1 ) stop('multiple file names in the same call not supported')
-  if( length(name) > 1 ) stop('multiple variable names in the same call not supported')
+rswat_docs = function(pattern = '*',
+                      fuzzy = 0L,
+                      defs = FALSE,
+                      .db = .rswat_db) {
 
-  # handle unspecified variable name
-  if( is.null(name) )
+  # check for file name in first argument only when searching names
+  is_file_match = FALSE
+  if(!defs)
   {
-    # when called without arguments, return all file names listed in docs
-    if( is.null(f) )
+    # look for exact matches with file names
+    is_file_match = .db[['docs']][['defs']][['file']] == pattern
+    if( any(is_file_match) )
     {
-      # all available docs
-      f_docs = unique(.db$docs$defs$file)
-      f_in_dir = f_docs %in% .db$get_loaded_files()
+      # pull all matching entries in order
+      result = .db[['docs']][['defs']][ which(is_file_match), ] |>
+        dplyr::select(-'desc_long') |>
+        dplyr::mutate('distance' = -1)
 
-      # print choices
-      if(!quiet)
+      # print the file name (if any)
+      if( nrow(result) > 0 )
       {
-        # print a message about which of these files are loaded
-        msg_known = paste(f_docs[f_in_dir], collapse=', ')
-        msg_unknown = paste(f_docs[!f_in_dir], collapse=', ')
-        message('select a file to see its documentation...')
-        all_loaded = length(msg_unknown) == 0
-        message(ifelse(all_loaded, 'all files loaded:', 'loaded:'))
-        cat(paste0(msg_known, '\n'))
-        if(!all_loaded)
-        {
-          message('not loaded:')
-          cat(paste0(msg_unknown, '\n'))
-        }
+        file_name = head(unique(result[['file']]), 1)
+        message( paste(nrow(result), 'definition(s) found for', file_name) )
       }
-
-      return(invisible(f_docs))
     }
-
-    # list all variable names available for this file in docs
-    name_docs = .db$docs$defs[.db$docs$defs$file == f, 'name']
-    if(!quiet) message(paste('select a variable name:', paste(name_docs, collapse=', ')))
-    return(invisible(name_docs))
   }
 
-  # handle unspecified file name
-  if( is.null(f) )
+  # search docs
+  if( !any(is_file_match) )
   {
-    # extract all file names associated with this variable name
-    f = unique(.db$docs$defs$file[ .db$docs$defs$name == name ])
-
-    # handle no results
-    if( length(f) == 0 )
-    {
-      msg_try = paste0('Try calling rswat_find("', name, '") to find an alias for this variable.')
-      if(!quiet) message(paste('no results.', msg_try))
-      return(invisible())
-    }
-
-    # handle multiple file matches
-    if( length(f) > 1 )
-    {
-      msg_select = paste(f, collapse=', ')
-      if(!quiet) message(paste('variable', name, 'found in multiple files. Select one:', msg_select))
-      return(invisible(f))
-    }
+    # perform the search
+    result = rswat_fuzzy_search(pattern = pattern,
+                                name_df = .db[['docs']][['defs']],
+                                name = ifelse(defs, 'desc_long', 'name'),
+                                fuzzy = fuzzy) |>
+      dplyr::select(-'desc_long')
   }
 
-  # more validity checks for input
-  is_name_match = .db[['docs']][['defs']][['name']] == name
-  is_file_match = .db[['docs']][['defs']][['file']] == f
-  if( !any(is_name_match | is_file_match) ) stop('no matches for name or f')
-  if( !any(is_name_match) ) return( rswat_docs(name=NULL, f=f, quiet=quiet, .db=.rswat_db) )
-  if( !any(is_file_match ) ) return( rswat_docs(name=name, f=NULL, quiet=quiet, .db=.rswat_db) )
-  is_match = is_name_match & is_file_match
-  if( !any(is_match) ) stop(paste('variable', name, 'not found in file', f))
-
-    # extract the matching documentation
-  docs_df = .db[['docs']][['defs']][is_name_match & is_file_match,]
-  if( nrow(docs_df) != 1L ) return('failed to find unique match')
-
-  # print the selected variable name definition
-  if( !quiet )
+  # skip sorting and files message in no-results case
+  if( nrow(result) > 0 )
   {
-    msg_loc = paste0('page ', docs_df[['page_num']], ', line ', docs_df[['line_num']], 'of PDF:')
-    msg_file = paste0('(file ', f, ')')
-    message( paste('printing definition of', name, msg_file, 'on', msg_loc) )
-    cat( docs_df[['desc_long']] )
+    # skip this message for results coming from a file name look-up
+    if( !any(is_file_match) )
+    {
+      # message about file names matched
+      file_name = unique(result[['file']])
+      search_type = ifelse(defs, 'definition(s)', 'parameter(s)')
+      msg_result = paste(nrow(result), search_type, 'in', length(file_name), 'file(s)')
+
+      # shows simpler message for default call with '*'
+      if(pattern != '*') msg_result = paste0('"', pattern, '" matched to ', msg_result)
+      message(msg_result)
+    }
+
+    # group search results by file via file-wise minimum distance
+    scores_lu = result |>
+      dplyr::group_by(file) |>
+      dplyr::summarize(f_score=min(distance)) |>
+      dplyr::arrange(f_score)
+
+    # new grouped order for output
+    idx_out = scores_lu[['f_score']][ match(result[['file']], scores_lu[['file']]) ] |> order()
+    result = result[idx_out, ]
+
+  } else {
+
+    # print suggestions in 0 results case
+    msg_empty = 'no results. Try increasing fuzzy'
+    if(!defs) msg_empty = paste(msg_empty, 'or setting defs=TRUE to search definitions text')
+    message(msg_empty)
   }
 
-  return(invisible(docs_df[['desc_long']]))
+  # tidy up columns
+  result = result |> dplyr::select(c('page_num', 'line_num', 'file', 'name', 'desc')) |>
+    dplyr::rename('page'='page_num', 'line'='line_num')
+
+  # return as tibble
+  return( dplyr::tibble(result) )
 }
-
 
 #' Match SWAT+ variable names found in config files to definitions in documentation
 #'
 #' @param file_df input config file data
-#' @param desc_weight switch this to logical
-#' @param desc_len how many characters of description to print
-#' @param div_penalty internal
-#' @param k_select k-diagonals
-#' @param trim print level
 #' @param quiet logical, supresses console output
 #' @param .db rswat_db object, for internal use
 #'
-#' @return a
+#' @return a tibble with columns alias, match, definition, appended
 #' @export
-rswat_match_docs = function(file_df,
-                            desc_weight = 1,
-                            desc_len = 100L,
-                            div_penalty = 1,
-                            k_select = NULL,
-                            trim = 3L,
-                            quiet = FALSE,
-                            .db = .rswat_db)
-{
-  # handle character input to file_df
-  if( is.character(file_df) ) file_df = rswat_find(f = file_df,
-                                                   docs = FALSE,
-                                                   trim = trim,
+rswat_match_docs = function(file_df, quiet=FALSE, .db=.rswat_db) {
+
+  # build file_df data frame from character argument
+  if( is.character(file_df) ) file_df = rswat_find(file_df,
+                                                   add_defs = FALSE,
                                                    quiet = TRUE,
                                                    .db = .db)
+  # names to print
+  nm_print = c(names(file_df), .rswat_gv_match_docs_trim(trim=3)) |> unique()
 
-  # returned columns depend on the trim level
-  if( !( trim %in% 1:5 ) ) trim = 5
-  nm_print = unique(c(names(file_df), .rswat_gv_match_docs_trim(trim)))
+  # extract the file name(s) and return from empty case
+  file_name = unique(file_df[['file']])
+  if( is.null(file_name) ) return( file_df )
 
   # these columns get overwritten by the function
   n_file_df = nrow(file_df)
@@ -145,65 +128,53 @@ rswat_match_docs = function(file_df,
   file_df[['match']] = rep(NA_character_, n_file_df)
   file_df[['id_alias']] = rep(NA_integer_, n_file_df)
 
-  # extract the file name(s) and return from empty case
-  f = unique(file_df[['file']])
-  if( is.null(f) ) return( file_df[, nm_print, drop=FALSE] )
-
   # multi-file case
-  if( length(f) > 1 )
+  if( length(file_name) > 1 )
   {
     # make a list of results in a loop then combine into one data frame
-    match_result_list = do.call(rbind, lapply(f, \(f_i) {
+    match_result_df = do.call(rbind, lapply(file_name, \(file_name_i) {
 
       # function call for a single file
-      rswat_match_docs(file_df = f_i,
-                       desc_weight = desc_weight,
-                       desc_len = desc_len,
-                       div_penalty = div_penalty,
-                       k_select = k_select,
-                       trim = trim,
-                       quiet = TRUE,
-                       .db = .db)
+      rswat_match_docs(file_df=file_name_i, quiet=TRUE, .db=.db)
     }))
 
-    # merge the match data frame with the input and return selected columns
+    # merge the match data frame with the input
     nm_file = names(file_df)
-    nm_extra = nm_file[ !( nm_file %in% names(match_result_list) ) ]
-    return(merge(file_df[,c('file', 'name', nm_extra)], match_result_list)[, nm_print])
+    nm_extra = nm_file[ !( nm_file %in% names(match_result_df) ) ]
+    file_df = merge(file_df[,c('file', 'name', nm_extra)], match_result_df)[, nm_print]
+
+    # return selected columns in a tibble
+    return(dplyr::tibble(file_df))
   }
 
+  # single file case
+
   # message when no documentation found
-  msg_fail = paste('no documentation found for file', f)
+  msg_fail = paste('no documentation found for file', file_name)
 
   # omit redundant rows
   nm_unique = unique( file_df[['name']] )
   file_df = file_df[match(file_df[['name']], nm_unique)[ seq_along(nm_unique) ],]
 
   # index of variable definitions for this file
-  is_docs_on_f = .db[['docs']][['defs']][['file']] == f
-  if( !any(is_docs_on_f) )
+  is_doc_relevant = .db[['docs']][['defs']][['file']] == file_name
+  if( !any(is_doc_relevant) )
   {
-
-    if( !quiet ) message(msg_fail)
+    if(!quiet) message(msg_fail)
     return( file_df[, nm_print, drop=FALSE] )
   }
 
   # copy required elements from database
-  docs_df = data.frame(
-
-    # name and truncated description
-    name = .db[['docs']][['defs']][['name']][is_docs_on_f],
-    desc = substr(.db[['docs']][['defs']][['desc']][is_docs_on_f], 1L, desc_len)
-  )
+  docs_df = .db[['docs']][['defs']][is_doc_relevant,]
 
   # omit problematic strings from fuzzy name matching
   nm_omit = .rswat_gv_nm_nomatch()
   docs_df[['skip']] = docs_df[['name']] %in% nm_omit
   file_df[['skip']] = file_df[['name']] %in% nm_omit
-
-  # end search if everything was skipped
   is_file_incl = !file_df[['skip']]
   is_docs_incl = !docs_df[['skip']]
+
+  # end search if everything was skipped
   if( all(!is_file_incl) | all(!is_docs_incl) )
   {
     if( !quiet ) message(msg_fail)
@@ -239,14 +210,7 @@ rswat_match_docs = function(file_df,
   }
 
   # initial fuzzy matching
-  match_result = rswat_fuzzy_match(name_df = file_df,
-                                   alias_df = docs_df,
-                                   skip = TRUE,
-                                   alias_desc = TRUE,
-                                   name_split=TRUE,
-                                   alias_split=TRUE,
-                                   k_select = k_select,
-                                   div_penalty = div_penalty)
+  match_result = rswat_fuzzy_match(name_df = file_df, alias_df = docs_df)
 
   # check whether elements are in sequence
   is_unit_diff = diff(match_result[['id_alias']]) == 1L
@@ -255,7 +219,7 @@ rswat_match_docs = function(file_df,
   is_diagonal[ is.na(is_diagonal) ] = TRUE
   is_seq = is_diagonal | c(is_unit_diff, TRUE) | c(TRUE, is_unit_diff)
 
-  data.frame(match_result, is_seq=is_seq)
+  #data.frame(match_result, is_seq=is_seq)
 
   # second round of matching for out-of-sequence elements
   if( !all(is_seq) )
@@ -266,14 +230,7 @@ rswat_match_docs = function(file_df,
     docs_df[['skip']][ docs_df[['name']] %in% alias_exclude ] = TRUE
 
     # second round of matching on non-sequential elements only
-    match_result = rswat_fuzzy_match(name_df = match_result,
-                                     alias_df = docs_df,
-                                     skip = TRUE,
-                                     alias_desc = TRUE,
-                                     name_split = TRUE,
-                                     alias_split = TRUE,
-                                     k_select = k_select,
-                                     div_penalty = div_penalty)
+    match_result = rswat_fuzzy_match(name_df = match_result, alias_df = docs_df)
   }
 
   # check for items that were not mapped
@@ -296,10 +253,11 @@ rswat_match_docs = function(file_df,
   }
 
   # return match results
+  #return(dplyr::rename(match_result[, nm_print], 'definition'='desc'))
   return(match_result[, nm_print])
 }
 
-
+# TODO: simplify and remove some of the arguments, rename, move to utils
 #' Match names to aliases, merging other fields
 #'
 #' This uses rswat_amatch to match SWAT+ names to aliases in the PDF, then

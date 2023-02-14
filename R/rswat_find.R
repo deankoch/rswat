@@ -1,221 +1,164 @@
 
 #' Search SWAT+ config files for a keyword
 #'
-#' Returns a data frame of information on matches of `pattern` against SWAT+ file and
-#' variable names. The default `'*'` matches everything, resulting in a data frame
-#' summarizing ALL fields in the specified file(s).
+#' Searches among loaded SWAT+ files for parameter names matching the search
+#' query `pattern`, returning a tibble of information on the matches. If
+#' `pattern` is a file name (and `vals=FALSE`) the function returns results
+#' on all parameters in the file, automatically loading the file as needed.
 #'
-#' `fuzzy = -1` is for exact matches only, `fuzzy = 0` includes results where
-#' `pattern` appears as a sub-string, and  `fuzzy > 0` includes the next `fuzzy` closest
-#' matches. See `?rswat_fuzzy_search`.
+#' The default (`fuzzy = 0`) settings return results where `pattern` appears as a
+#' sub-string, `fuzzy = -1` specifies exact matches only, and  `fuzzy > 0` returns,
+#' in addition, the next `fuzzy` closest matches. See `?rswat_fuzzy_search`.
 #'
-#' By default the function searches all loaded files. Otherwise, the function searches
-#' in the subset of files specified by `include`, loading missing files as needed.
-#' Get a list of files and their load state with `rswat_open()`.
+#' Definitions are automatically matched to parameters when `add_defs=TRUE` (the
+#' default). In cases of discrepancies in spelling, `rswat` attempts to match names
+#' automatically to aliases. A three-star match score is assigned, with one or
+#' two stars indicating some doubt.
+#'
+#' If `vals=TRUE`, the function searches parameter values (as strings) instead of
+#' names and allows file name queries. This can be useful for finding (character
+#' class) parameters that link to other parameters by naming a file.
+#'
+#' The special character `'*'` matches all parameters in all (loaded) files,
+#' returning everything in a single tibble. This will take a few seconds if you have
+#' `add_defs=TRUE`.
+#'
+#' Get a list of files and their load state with `rswat_open()` or `rswat_files()`.
 #'
 #' @param pattern character vector, the string(s) to search for
-#' @param f character vector, file (or file group) names to include in search
 #' @param fuzzy numeric, specifying tolerance for approximate matches (see details)
-#' @param docs logical, appends 'match', 'alias', and 'desc' fields to results
-#' @param trim integer between 1-5, higher means more simplification in printed result
-#' @param n_max positive integer, the maximum number of search results to return
+#' @param vals logical, specifies to search values (in files) instead of parameter names
+#' @param add_defs logical, appends 'match', 'alias', and 'desc' fields to results
 #' @param quiet logical, supresses console output
 #' @param .db rswat_db object, for internal use
 #'
 #' @return A data frame of information about SWAT+ names matching the search pattern(s)
 #' @export
-rswat_find = function(pattern = '*',
-                      f = NULL,
+rswat_find = function(pattern = NULL,
                       fuzzy = 0L,
-                      docs = TRUE,
-                      what = 'header',
-                      trim = 4L,
-                      n_max = 10L,
+                      vals = FALSE,
+                      add_defs = TRUE,
                       quiet = FALSE,
-                      .db = .rswat_db)
-{
-  # returned columns depend on the trim level
-  if( !(trim %in% 1:5) ) {
+                      .db = .rswat_db) {
 
-    # show all variables
-    nm_print = names(rswat_scan_txt())
-
-  } else { nm_print = .rswat_gv_find_trim(trim) }
-
-  # append the columns returned by rswat_match_docs
-  if( docs ) nm_print = unique( c(nm_print, .rswat_gv_match_docs_trim(trim=3L)) )
-
-  # append columns required for what='tabular' mode
-  if( what != 'header') nm_print = unique( c('line_num', 'string', nm_print) )
-
-  # scan for changes and make a list of all files on disk
+  # scan for changes and make a table of all recognized files on disk
   .db$refresh_cio_df()
-  files_ondisk = .db$get_cio_df() |>
-    dplyr::filter(known==TRUE) |>
-    dplyr::select(file, group, type)
+  files_ondisk = .db$get_cio_df() |> dplyr::filter(known==TRUE) |> dplyr::pull(file)
 
-  # determine which files to look at
-  if( is.null(f) )
+  # get list of loaded files
+  files_loaded = .db$get_loaded_files()
+
+  # handle empty first argument
+  if( is.null(pattern) )
   {
-    # compare pattern with known file names
-    if( !all(pattern %in% files_ondisk[['file']]) | ( what != 'header' ) )
-    {
-      # by default search in all loaded files
-      f = .db$get_loaded_files()
-
-    } else {
-
-      # if pattern matches a file exactly, return results for the file
-      f = pattern
-      pattern = '*'
-    }
+    paste0(length(files_loaded), '/', .db$report_known_files()) |>
+      paste('are loaded and searchable.') |> message()
+    message(paste('call rswat_find("*") to display all'))
+    return(invisible())
   }
 
-  # if file.cio is the only file listed in f, return nothing
-  if( all(f %in% 'file.cio') & ( what == 'header' ) )
+  # file name matching skipped when searching values
+  is_file_match = FALSE
+  if( !vals )
   {
-    # info for users about what happened
-    if(!quiet)
+    # look for exact matches with file names
+    is_file_match = files_ondisk == pattern
+    if( any(is_file_match) )
     {
-      # check if any other files are available for searching
-      f_available = .db$get_loaded_files()
-      is_f_alone = all(f_available %in% f)
+      # load file(s)
+      file_name = head(files_ondisk[is_file_match], 1)
+      is_loaded = file_name %in% files_loaded
+      if(!is_loaded) .db$open_config_batch(file_name, refresh=FALSE, quiet=quiet)
+      files_loaded = c(files_loaded, file_name) |> unique()
 
-      # only file.cio is available?
-      if(!is_f_alone) { message('no variables to display in file.cio') } else {
+      # load file info
+      result = rswat_fuzzy_search(pattern='*', name_df=file_name, quiet=TRUE)
 
-        # check for empty directory
-        f_known = .db$report_known_files()
-        if( length(f_known) == 0L ) {
+      # print the file name
+      if( nrow(result) > 0 )
+      {
+        result = result |> dplyr::mutate('distance' = 0)
+        if( !quiet ) message( paste(nrow(result), 'parameters(s) found in', file_name) )
 
-          message('current project directory is empty. Import a project with rswat_copy')
+      } else {
 
-        } else {
+        # handle invalid file.cio request in this mode
+        msg_help = 'file.cio has no parameter names. To search its contents, set vals=TRUE'
+        if( all(files_loaded %in% 'file.cio') ) stop(msg_help)
 
-          # otherwise print more info if file.cio can be found
-          if( 'file.cio' %in% f_known ) {
-
-            # guidance for users who haven't loaded any files yet
-            message('load a file with rswat_open to make it searchable with rswat_find')
-            message(paste('rswat knows about', .db$report_known_files(), 'but only file.cio is loaded'))
-
-          }
-        }
+        # otherwise there is a bug producing 0 parameter info for the file
+        msg_bug = paste('rswat has no parameter info for', file_name)
+        stop(msg_bug, '. Try opening with rswat_open?')
       }
     }
 
-    return( invisible(data.frame(name=character(0))) )
+    # handle invalid file.cio request in this mode
+    if( all(files_loaded %in% 'file.cio') )
+    {
+      message('Only file.cio is loaded.')
+      message('To search parameter names, load another file.')
+      message('To search within file.cio, call again with vals=TRUE')
+      return(invisible())
+    }
   }
 
-  # check for missing files
-  is_loaded = .db$is_file_loaded(f)
-  if( any(!is_loaded) )
+  # search among loaded files
+  if( !any(is_file_match) )
   {
-    # make sure the file(s) can be found on disk
-    is_found = f %in% files_ondisk[['file']]
-    if( all(is_found) | ( length(f) != 1L ) )
-    {
-      # load the requested file (or halt if files not found)
-      message(paste('loading:', paste(f[!is_loaded], collapse=', ')))
-      rswat_open(f[!is_loaded], refresh=TRUE, .db=.db)
-
-    } else {
-
-      # file search requires quiet=FALSE
-      msg_missing = paste('file', f, 'not found.')
-      if(quiet) stop( paste(msg_missing, 'Repeat with quiet=FALSE to get file name suggestions') )
-
-      # enter file search mode (this handles unknown f in length-1 case only)
-      nm_print = names(files_ondisk)
-      message( paste(msg_missing, 'Searching for similar file names...') )
-
-      # search for this string among known file, group, type names
-      files_ondisk[['file_lookup']] = apply(files_ondisk, 1, \(x) paste(x, collapse=' '))
-      search_result = rswat_fuzzy_search(pattern = f,
-                                         name_df = files_ondisk,
-                                         name = 'file_lookup',
-                                         pattern_split = FALSE,
-                                         lu_split = TRUE,
-                                         fuzzy = nrow(files_ondisk),
-                                         quiet = quiet)
-
-      # when exact (or sub-string) calls get 0 results, return first approximate result
-      if( !any(search_result[['fuzzy']] == -1) & ( fuzzy == -1L ) ) fuzzy = 0L
-      if( !any(search_result[['fuzzy']] <= 0) & ( fuzzy == 0L ) ) fuzzy = 1L
-
-      # print the results to console if requested and return all rows invisibly
-      return( rswat_show_search(results = search_result,
+    # perform the search and trim irrelevant columns
+    result = rswat_fuzzy_search(pattern = pattern,
+                                name_df = files_loaded,
+                                name = ifelse(vals, 'string', 'name'),
+                                what = ifelse(vals, 'string', 'header'),
                                 fuzzy = fuzzy,
-                                n_max = n_max,
-                                nm_print = nm_print,
-                                quiet = quiet,
-                                .db = .db) )
-    }
+                                .db = .db)
   }
 
-  # handle default pattern
-  if( pattern == '*' )
+  # in no-results case skip sorting, definition matching, and files message
+  if( nrow(result) == 0 )
   {
-    # locate headers for requested files in fields info data-frame
-    is_searched = .db$get_line_df(what=what, f=f, drop=TRUE)
+    if(!quiet) message('No results. Try increasing fuzzy or searching values with vals=TRUE')
 
-    # find index for requested files in fields info data-frame
-    search_result = .db$get_line_df(what=nm_print, f=f)[is_searched,]
-    rownames(search_result) = NULL
+  } else {
 
-    # append documentation and print on request
-    if( docs ) search_result = rswat_match_docs(search_result, trim=3L)
-    if(!quiet)
+    # message about results not coming from a file name look-up
+    if( !any(is_file_match) )
     {
-      n_files = length(unique(search_result[['file']]))
-      msg_files = paste(n_files, 'file(s)')
-      if( length(unique(f)) == 1L )
-      {
-        # change the message and omit file name and group from printout
-        msg_files = f
-        nm_print = nm_print[ !( nm_print %in% c('file', 'group', 'type') ) ]
-      }
-
-      # print a message
-      message(paste(nrow(search_result), 'variable(s) in', msg_files))
-
-      # print the data frame
-      search_result_print = search_result[, nm_print, drop=FALSE] |> rswat_truncate_txt()
-      if( nrow(search_result_print) > 0 )
-      {
-        print(search_result_print, right=FALSE)
-        cat('\n')
-      }
+      # message about number of files searched and matched
+      file_name = unique(result[['file']])
+      msg_domain = paste0('(searched ', length(files_loaded), ')')
+      if( !quiet ) paste(nrow(result), 'result(s) for') |>
+        paste0(' "', pattern, '"') |>
+        paste('in', length(file_name), 'file(s)', msg_domain) |>
+        message()
     }
 
-    return(invisible(search_result[, nm_print, drop=FALSE]))
+    # match to definitions
+    if(add_defs & !vals)
+    {
+      if(!quiet) cat('looking up definitions...\n')
+      result = rswat_match_docs(result, .db=.db)
+    }
+
+    # group search results by file via file-wise minimum distance
+    scores_lu = result |>
+      dplyr::group_by(file) |>
+      dplyr::summarize(f_score=min(distance)) |>
+      dplyr::arrange(f_score)
+
+    # new grouped order for output
+    idx_out = scores_lu[['f_score']][ match(result[['file']], scores_lu[['file']]) ] |> order()
+    result = result[idx_out, ]
   }
 
-  # search
-  search_result = rswat_fuzzy_search(pattern = pattern,
-                                     name_df = f,
-                                     name = ifelse(what=='header', 'name', 'string'),
-                                     pattern_split = TRUE,
-                                     lu_split = FALSE,
-                                     fuzzy = fuzzy,
-                                     what = what,
-                                     quiet = quiet)
-
-
-  # TODO: optimization here by removing unnecessary match requests?
-  # sort by distance and merge existing info on on matches
-  if( docs ) search_result = rswat_match_docs(search_result, trim=3L)
-  search_result = search_result[order(search_result[['distance']]), ]
-  row.names(search_result) = NULL
-
-  # print the results to console if requested and return all rows invisibly
-  return( rswat_show_search(results = search_result,
-                            fuzzy = fuzzy,
-                            n_max = n_max,
-                            nm_print = nm_print,
-                            quiet = quiet,
-                            .db = .db) )
+  # select columns to return
+  relevant_columns = c('file', 'group', 'table', 'class', 'name')
+  if(add_defs) relevant_columns = c(relevant_columns, 'alias', 'match', 'desc')
+  if(vals) relevant_columns = c(relevant_columns, 'line_num', 'string')
+  relevant_columns = relevant_columns[ relevant_columns %in% names(result) ]
+  return( dplyr::tibble( dplyr::select(result, relevant_columns) ) )
 }
+
 
 
 #' Fuzzy text search for strings
@@ -225,8 +168,8 @@ rswat_find = function(pattern = '*',
 #' in column 'distance' (lower is better) and an integer column 'fuzzy' with values
 #' in `c(-1, 0, 1)`, indicating the type of match (exact, sub-string, approximate).
 #'
-#' Results are sorted from best to worst before returning, with row names indicating
-#' the original order of `name_df`.
+#' Results are sorted from best to worst, with row names indicating the original order
+#' of `name_df`.
 #'
 #' With `fuzzy=-1`, only exact matches are returned; With `fuzzy=0`, sub-string matches
 #' are also returned; and `fuzzy>0` returns an additional `fuzzy` approximate results.
@@ -289,7 +232,18 @@ rswat_fuzzy_search = function(pattern,
   # handle db reference index input to name_df
   if( is.character(name_df) )
   {
+    # when what='header', this is logical indicating a variable name, else it is the string itself
     is_searched = .db$get_line_df(what=what, f=name_df, drop=TRUE)
+    if(what=='string')
+    {
+      # ignore empty values
+      is_searched = nchar(is_searched) > 0
+
+      # ignore header lines
+      is_searched = is_searched & !( .db$get_line_df(what='header', f=name_df, drop=TRUE) )
+    }
+
+    # fetch the relevant table entries
     name_df = .db$get_line_df(f=name_df)[is_searched,]
   }
 
@@ -314,7 +268,7 @@ rswat_fuzzy_search = function(pattern,
   is_returned = name_df[['fuzzy']] <= min(1L, fuzzy)
   idx_fuzzy = which( name_df[['fuzzy']][is_returned] == 1L )
   if( length(idx_fuzzy) > abs(fuzzy) ) is_returned[ idx_fuzzy[-seq(fuzzy)] ] = FALSE
-  if( !any(is_returned) & !quiet ) message('No results. Try increasing fuzzy')
+  #if( !any(is_returned) & !quiet ) message('No results. Try increasing fuzzy')
   if(quiet) return(invisible(name_df[is_returned, ,drop=FALSE]))
   return(name_df[is_returned, , drop=FALSE])
 }
@@ -322,7 +276,7 @@ rswat_fuzzy_search = function(pattern,
 
 
 
-
+# TODO: get rid of this
 #' Print the results of an rswat search
 #'
 #' Helper function for `rswat_find`. This prints search results to the
@@ -389,7 +343,8 @@ rswat_show_search = function(results,
   results = head(results, n_results - nrow(results_omit))
 
   # copy and add padding to right-align console printout columns
-  results_print = rswat_truncate_txt(results[, nm_print])
+  #results_print = rswat_truncate_txt(results[, nm_print])
+  results_print = results[, nm_print]
 
   # these vectors added to below
   idx_show = NULL
@@ -439,11 +394,11 @@ rswat_show_search = function(results,
   message( paste(msg_all, collapse=', ') )
   cat('\n')
 
-  # print data frame of matches
-  print(results_print[idx_show, , drop=FALSE],
-        row.names = T,
-        quote = FALSE,
-        right = FALSE)
+  # # print data frame of matches
+  # print(results_print[idx_show, , drop=FALSE],
+  #       row.names = T,
+  #       quote = FALSE,
+  #       right = FALSE)
 
   # report omitted rows
   cat('\n')
