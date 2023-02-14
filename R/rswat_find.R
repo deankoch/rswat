@@ -160,6 +160,105 @@ rswat_find = function(pattern = NULL,
 }
 
 
+#' Search variable names and description text in the SWAT+ inputs PDF
+#'
+#' Returns a tibble with SWA+ name/definition pairs matching `pattern`.
+#'
+#' The function uses `rswat_fuzzy_search` to look for parameter names containing
+#' the string `pattern`. If `pattern` exactly matches a SWAT+ file name, the function
+#' returns all known name/definition pairs for that file.
+#
+#' If `defs=TRUE` the function searches in definitions instead of names and file
+#' names are ignored. Increase `fuzzy` to get approximate results or set it to -1
+#' to get exact matches only (see `?rswat_fuzzy_search`).
+#'
+#' @param pattern character vector, the search keyword string
+#' @param fuzzy integer controlling the number of results returned (see `?rswat_fuzzy_search`)
+#' @param defs logical indicating to search definitions text instead of parameter names
+#' @param .db rswat_db object for internal use
+#'
+#' @return tibble containing search results and their location in the PDF
+#' @export
+rswat_docs = function(pattern = '*',
+                      fuzzy = 0L,
+                      defs = FALSE,
+                      .db = .rswat_db) {
+
+  # check for file name in first argument only when searching names
+  is_file_match = FALSE
+  if(!defs)
+  {
+    # look for exact matches with file names
+    is_file_match = .db[['docs']][['defs']][['file']] == pattern
+    if( any(is_file_match) )
+    {
+      # pull all matching entries in order
+      result = .db[['docs']][['defs']][ which(is_file_match), ] |>
+        dplyr::select(-'desc_long') |>
+        dplyr::mutate('distance' = -1)
+
+      # print the file name (if any)
+      if( nrow(result) > 0 )
+      {
+        file_name = head(unique(result[['file']]), 1)
+        message( paste(nrow(result), 'definition(s) found for', file_name) )
+      }
+    }
+  }
+
+  # search docs
+  if( !any(is_file_match) )
+  {
+    # perform the search
+    result = rswat_fuzzy_search(pattern = pattern,
+                                name_df = .db[['docs']][['defs']],
+                                name = ifelse(defs, 'desc_long', 'name'),
+                                fuzzy = fuzzy) |>
+      dplyr::select(-'desc_long')
+  }
+
+  # skip sorting and files message in no-results case
+  if( nrow(result) > 0 )
+  {
+    # skip this message for results coming from a file name look-up
+    if( !any(is_file_match) )
+    {
+      # message about file names matched
+      file_name = unique(result[['file']])
+      search_type = ifelse(defs, 'definition(s)', 'parameter(s)')
+      msg_result = paste(nrow(result), search_type, 'in', length(file_name), 'file(s)')
+
+      # shows simpler message for default call with '*'
+      if(pattern != '*') msg_result = paste0('"', pattern, '" matched to ', msg_result)
+      message(msg_result)
+    }
+
+    # group search results by file via file-wise minimum distance
+    scores_lu = result |>
+      dplyr::group_by(file) |>
+      dplyr::summarize(f_score=min(distance)) |>
+      dplyr::arrange(f_score)
+
+    # new grouped order for output
+    idx_out = scores_lu[['f_score']][ match(result[['file']], scores_lu[['file']]) ] |> order()
+    result = result[idx_out, ]
+
+  } else {
+
+    # print suggestions in 0 results case
+    msg_empty = 'no results. Try increasing fuzzy'
+    if(!defs) msg_empty = paste(msg_empty, 'or setting defs=TRUE to search definitions text')
+    message(msg_empty)
+  }
+
+  # tidy up columns
+  result = result |> dplyr::select(c('page_num', 'line_num', 'file', 'name', 'desc')) |>
+    dplyr::rename('page'='page_num', 'line'='line_num')
+
+  # return as tibble
+  return( dplyr::tibble(result) )
+}
+
 
 #' Fuzzy text search for strings
 #'
@@ -274,140 +373,254 @@ rswat_fuzzy_search = function(pattern,
 }
 
 
-
-
-# TODO: get rid of this
-#' Print the results of an rswat search
+#' Match SWAT+ variable names found in config files to definitions in documentation
 #'
-#' Helper function for `rswat_find`. This prints search results to the
-#' console, dividing the results into 1-3 categories (exact, sub-string, or approximate.)
-#' depending on `fuzzy`. Categories are based on the match strength scores in column
-#' 'distance' (lower is better, see `?rswat_fuzzy_search`).
-#'
-#' `results` must have an additional column named 'nm_lu', containing the character
-#' strings that were matched. `nm_print` controls which columns are printed (normally 'name'
-#' and 'file', and possibly 'description'), and `n_max` controls many rows are printed.
-#'
-#' If a name in `nm_print` is not found among the columns of `results`, the function
-#' uses the `get_cio_df` method of `.db` to look it up. Get a list of valid names for
-#' this feature with `names(.rswat_db$get_cio_df())`.
-#'
-#' All rows of `results[, nm_print]` are returned invisibly, independent of `n_max`.
-#'
-#' @param results data frame with numeric `distance` and character `name` columns
-#' @param fuzzy integer, controlling the number of results returned (see `?rswat_find`)
-#' @param n_max positive integer, the maximum number of search results to print
-#' @param nm_print character vector, usually a subset of `names(results)` (see details)
-#' @param .db rswat_db object, for internal use
+#' @param file_df input config file data
 #' @param quiet logical, supresses console output
+#' @param .db rswat_db object, for internal use
 #'
-#' @return Returns (invisibly) the subset of `results` specified by `nm_print`
+#' @return a tibble with columns alias, match, definition, appended
 #' @export
-rswat_show_search = function(results,
-                             fuzzy = 2L,
-                             n_max = 10L,
-                             nm_print = names(results),
-                             quiet = FALSE,
-                             .db = .rswat_db)
-{
-  # handle empty results data frame
-  n_results = nrow(results)
-  if(n_results == 0)
+rswat_match_docs = function(file_df, quiet=FALSE, .db=.rswat_db) {
+
+  # build file_df data frame from character argument
+  if( is.character(file_df) ) file_df = rswat_find(file_df,
+                                                   add_defs = FALSE,
+                                                   quiet = TRUE,
+                                                   .db = .db)
+  # names to print
+  nm_print = c(names(file_df), .rswat_gv_match_docs_trim(trim=3)) |> unique()
+
+  # extract the file name(s) and return from empty case
+  file_name = unique(file_df[['file']])
+  if( is.null(file_name) ) return( file_df )
+
+  # these columns get overwritten by the function
+  n_file_df = nrow(file_df)
+  file_df[['match_distance']] = rep(NA_real_, n_file_df)
+  file_df[['alias']] = rep(NA_character_, n_file_df)
+  file_df[['desc']] = rep(NA_character_, n_file_df)
+  file_df[['match']] = rep(NA_character_, n_file_df)
+  file_df[['id_alias']] = rep(NA_integer_, n_file_df)
+
+  # multi-file case
+  if( length(file_name) > 1 )
   {
-    if(!quiet) message('no results')
-    return(invisible(results))
+    # make a list of results in a loop then combine into one data frame
+    match_result_df = do.call(rbind, lapply(file_name, \(file_name_i) {
+
+      # function call for a single file
+      rswat_match_docs(file_df=file_name_i, quiet=TRUE, .db=.db)
+    }))
+
+    # merge the match data frame with the input
+    nm_file = names(file_df)
+    nm_extra = nm_file[ !( nm_file %in% names(match_result_df) ) ]
+    file_df = merge(file_df[,c('file', 'name', nm_extra)], match_result_df)[, nm_print]
+
+    # return selected columns in a tibble
+    return(dplyr::tibble(file_df))
   }
 
-  # check for missing columns
-  is_missing = !( c('distance', nm_print) %in% names(results) )
-  if( any(is_missing) ) stop(paste(paste(nm_print, collapse=', '), 'missing from results'))
+  # single file case
 
-  # sort by distance and reset row names
-  #results = results[order(results[['distance']]), ]
-  rownames(results) = NULL
+  # message when no documentation found
+  msg_fail = paste('no documentation found for file', file_name)
 
-  # return the subset of the data frame in quiet mode
-  if(quiet) return(invisible(results[, nm_print, drop=FALSE]))
+  # omit redundant rows
+  nm_unique = unique( file_df[['name']] )
+  file_df = file_df[match(file_df[['name']], nm_unique)[ seq_along(nm_unique) ],]
 
-  # count results
-  n_exact = sum(results[['fuzzy']]==-1, na.rm=TRUE)
-  n_sub = sum(results[['fuzzy']]==0, na.rm=TRUE)
-  n_approx = sum(results[['fuzzy']]==1, na.rm=TRUE)
-
-  # round distance scores for printing
-  results[['distance']] = round(results[['distance']], 2L)
-
-  # trim the output data frame and keep a copy of the trimmed part for checks below
-  trim_reason = 'n_max'
-  results_omit = tail(results, pmax(0, n_results - n_max))
-  results = head(results, n_results - nrow(results_omit))
-
-  # copy and add padding to right-align console printout columns
-  #results_print = rswat_truncate_txt(results[, nm_print])
-  results_print = results[, nm_print]
-
-  # these vectors added to below
-  idx_show = NULL
-  msg_all = NULL
-
-  # exact matches are shown first
-  n_omit = sum(results_omit[['fuzzy']]==-1, na.rm=TRUE)
-  msg_exact = ifelse(n_exact > 0, n_exact, 'none')
-  msg_omit = ifelse(n_omit > 0, paste('showing', n_exact-n_omit, 'of', n_exact), msg_exact)
-  if( any(results[['fuzzy']] == -1, na.rm=TRUE) )
+  # index of variable definitions for this file
+  is_doc_relevant = .db[['docs']][['defs']][['file']] == file_name
+  if( !any(is_doc_relevant) )
   {
-    idx_show = c(idx_show, which(results[['fuzzy']] == -1))
-    msg_all = c(msg_all, paste('exact:', msg_omit))
+    if(!quiet) message(msg_fail)
+    return( file_df[, nm_print, drop=FALSE] )
   }
 
-  # sub-string matches shown second
-  if(fuzzy >= 0)
+  # copy required elements from database
+  docs_df = .db[['docs']][['defs']][is_doc_relevant,]
+
+  # omit problematic strings from fuzzy name matching
+  nm_omit = .rswat_gv_nm_nomatch()
+  docs_df[['skip']] = docs_df[['name']] %in% nm_omit
+  file_df[['skip']] = file_df[['name']] %in% nm_omit
+  is_file_incl = !file_df[['skip']]
+  is_docs_incl = !docs_df[['skip']]
+
+  # end search if everything was skipped
+  if( all(!is_file_incl) | all(!is_docs_incl) )
   {
-    n_omit = sum(results_omit[['fuzzy']] == 0, na.rm=TRUE)
-    msg_sub = ifelse(n_sub > 0, n_sub, 'none')
-    msg_omit = ifelse(n_omit > 0, paste('showing', n_sub-n_omit, 'of', n_sub), msg_sub)
-    if( any(results[['fuzzy']] == 0, na.rm=TRUE) )
-    {
-      idx_show = c(idx_show, which(results[['fuzzy']] == 0))
-      msg_all = c(msg_all, paste('sub-string:', msg_omit))
-    }
+    if( !quiet ) message(msg_fail)
+    return( file_df[, nm_print, drop=FALSE] )
   }
 
-  # approximate matches last
-  if(fuzzy >= 1)
+  # find index of exact matches
+  is_exact = file_df[['name']][is_file_incl] %in% docs_df[['name']][is_docs_incl]
+  idx_exact_in_file = which(is_file_incl)[ is_exact ]
+  idx_exact_in_docs = match(file_df[['name']][idx_exact_in_file], docs_df[['name']])
+  any_exact = length(idx_exact_in_file) > 0
+  if( any_exact )
   {
-    n_omit = sum(results_omit[['fuzzy']] == 1, na.rm=TRUE)
-    n_approx_show = min(n_approx-n_omit, fuzzy)
-    if( n_approx_show < (n_approx-n_omit) ) trim_reason = 'fuzzy'
-    msg_n = ifelse(n_approx_show == 1, '', n_approx_show)
-    msg_approx = ifelse(n_approx_show > 0, paste('showing first', msg_n), 'none shown')
-    msg_approx_trim = paste('showing', n_approx_show, 'of first', n_approx)
-    msg_omit = ifelse(n_omit > 0, msg_approx_trim, msg_approx)
-    if( n_approx_show > 0 )
-    {
-      idx_show = c(idx_show, which(results[['fuzzy']] == 1)[ seq(n_approx_show) ])
-      msg_all = c(msg_all, paste('fuzzy:', msg_omit))
-    }
+    # assign exact matches - these are fixed and not searchable below
+    file_df[['alias']][ idx_exact_in_file ] = ''
+    file_df[['match']][ idx_exact_in_file ] = '***'
+    file_df[['desc']][ idx_exact_in_file ] = docs_df[['desc']][idx_exact_in_docs]
+    file_df[['id_alias']][ idx_exact_in_file ] = idx_exact_in_docs
+    file_df[['match_distance']][ idx_exact_in_file ] = rep(0, length(idx_exact_in_file))
+    file_df[['skip']][ idx_exact_in_file ] = TRUE
+    docs_df[['skip']][ idx_exact_in_docs ] = TRUE
+
+    # update exclusion flags
+    is_file_incl = !file_df[['skip']]
+    is_docs_incl = !docs_df[['skip']]
   }
 
-  # message about type and number of matches
-  message( paste(msg_all, collapse=', ') )
-  cat('\n')
+  # end of exact search
+  if(  sum(is_file_incl) == 0 )
+  {
+    if( !quiet ) message('all variable names matched exactly')
+    return( file_df[, nm_print, drop=FALSE] )
+  }
 
-  # # print data frame of matches
-  # print(results_print[idx_show, , drop=FALSE],
-  #       row.names = T,
-  #       quote = FALSE,
-  #       right = FALSE)
+  # initial fuzzy matching
+  match_result = rswat_fuzzy_match(name_df = file_df, alias_df = docs_df)
 
-  # report omitted rows
-  cat('\n')
-  msg_omit = paste(n_omit, 'result(s) not shown. Increase', trim_reason, 'to see more')
-  if( n_omit > 0 ) message(msg_omit)
+  # check whether elements are in sequence
+  is_unit_diff = diff(match_result[['id_alias']]) == 1L
+  is_diagonal = match_result[['id_alias']] == seq(nrow(match_result))
+  is_unit_diff[ is.na(is_unit_diff) ] = TRUE
+  is_diagonal[ is.na(is_diagonal) ] = TRUE
+  is_seq = is_diagonal | c(is_unit_diff, TRUE) | c(TRUE, is_unit_diff)
 
-  # return the trimmed data frame without truncation
-  return(invisible(results[, nm_print, drop=FALSE]))
+  #data.frame(match_result, is_seq=is_seq)
+
+  # second round of matching for out-of-sequence elements
+  if( !all(is_seq) )
+  {
+    # flag sequential elements (and their aliases) for exclusion from search
+    match_result[['skip']][is_seq] = TRUE
+    alias_exclude = match_result[['alias']][ match_result[['skip']] ]
+    docs_df[['skip']][ docs_df[['name']] %in% alias_exclude ] = TRUE
+
+    # second round of matching on non-sequential elements only
+    match_result = rswat_fuzzy_match(name_df = match_result, alias_df = docs_df)
+  }
+
+  # check for items that were not mapped
+  if( !quiet )
+  {
+    # known names without a match in docs
+    is_missing = is.na(match_result[['alias']]) & !file_df[['skip']]
+    msg_missing = paste(sum(is_missing), 'name(s) not matched:') |>
+      paste( paste(match_result[['name']][is_missing], collapse=', ') ) |>
+      rswat_truncate_txt()
+
+    # variables in docs that couldn't be matched to the supplied names
+    is_unused = !( docs_df[['name']] %in% match_result[['alias']] ) & !docs_df[['skip']]
+    msg_unused = paste(sum(is_unused), 'unmatched definition(s) in documentation:') |>
+      paste( paste(docs_df[['name']][is_unused], collapse=', ') ) |>
+      rswat_truncate_txt()
+
+    if( any(is_missing) ) message(msg_missing)
+    if( any(is_unused) ) message(msg_unused)
+  }
+
+  # return match results
+  #return(dplyr::rename(match_result[, nm_print], 'definition'='desc'))
+  return(match_result[, nm_print])
 }
 
+# TODO: simplify and remove some of the arguments, rename, move to utils
+#' Match names to aliases, merging other fields
+#'
+#' This uses rswat_amatch to match SWAT+ names to aliases in the PDF, then
+#' merges the two data frames. It uses a greedy algorithm for assignment that
+#' favors match patterns that are (nearly) in sequence
+#'
+#' Matching is done against the 'name' columns of both inputs
+#'
+#' @param name_df  input config file data
+#' @param alias_df docs data
+#' @param skip omit from search
+#' @param alias_desc s
+#' @param name_split s
+#' @param alias_split  s
+#' @param div_penalty internal
+#' @param k_select diagonals
+#'
+#' @return a
+#' @export
+rswat_fuzzy_match = function(name_df,
+                             alias_df,
+                             skip = TRUE,
+                             alias_desc = TRUE,
+                             name_split = TRUE,
+                             alias_split = TRUE,
+                             div_penalty = 1,
+                             k_select = NULL)
+{
+  # TODO: toggle symmetric, add lu_split etc
 
+  # flags to include an item in searching
+  is_name_used = if(skip) !name_df[['skip']] else rep(TRUE, nrow(name_df))
+  is_alias_used = if(skip) !alias_df[['skip']] else rep(TRUE, nrow(alias_df))
+
+  # TODO: basic checks
+  if( !any(is_name_used) | !any(is_alias_used) ) return(name_df)
+
+  # set up pattern vector and look-up strings
+  name_key = stats::setNames(nm=name_df[['name']][is_name_used])
+  alias_nm = alias_df[['name']][is_alias_used]
+  if(alias_desc) { alias_lu = alias_nm } else {
+
+    # this mode assigns equal almost equal weight to description text
+    alias_lu = do.call(paste, list(alias_nm, alias_df[['desc']][is_alias_used]))
+    names(alias_lu) = alias_nm
+  }
+
+  # distance matrix for forward search
+  d_mat = rswat_string_dist(pattern = name_key,
+                            lu = alias_lu,
+                            lu_split = alias_split,
+                            pattern_split = name_split)
+
+  # search in the reverse direction and take transpose to get new distances
+  d_mat_t = t(rswat_string_dist(pattern = alias_nm,
+                                lu = name_key,
+                                lu_split = name_split,
+                                pattern_split = alias_split))
+
+  # penalty for divergence from input order
+  if( is.null(k_select) ) k_select = min(diff(dim(d_mat_t)), 0):max(diff(dim(d_mat_t)), 0)
+  pen_mat = Reduce('|', lapply(k_select, \(k) col(d_mat_t) - row(d_mat_t) == k ))
+  pen_mat = div_penalty * !pen_mat
+
+  # element-wise average of the two matrices plus penalty
+  d_mat_m = pen_mat + ( d_mat_t + d_mat ) / 2
+  rownames(d_mat_m) = alias_nm
+  colnames(d_mat_m) = name_key
+
+  # approximate matching
+  idx_amatch = rswat_amatch(d_mat_m)
+
+  # extract distances for result and indexing vectors for merging name_df, alias_df
+  match_dist = diag(d_mat_m[idx_amatch, names(idx_amatch), drop=FALSE])
+
+  # key to merge datasets
+  idx_alias = which(is_alias_used)[ idx_amatch ]
+  idx_name = which(is_name_used)[ name_key %in% names(idx_amatch) ]
+
+  # assign mapping, distance to name_df, then copy any extra fields from alias_df
+  name_df[['id_alias']][idx_name] = idx_alias
+  name_df[['match_distance']][idx_name] = match_dist
+  name_df[['alias']][idx_name] = alias_df[['name']][idx_alias]
+  alias_extra = names(alias_df)[ !( names(alias_df) %in% c('name', 'skip') ) ]
+  name_df[idx_name, alias_extra] = alias_df[idx_alias, alias_extra, drop=FALSE]
+
+  # update star rankings then return
+  name_df[['match']][idx_name] = ifelse(match_dist < 1, '**', '*')
+  return(name_df)
+}
 
