@@ -41,8 +41,8 @@ in column 'distance' (lower is better) and an integer column 'fuzzy' with values
 in \code{c(-1, 0, 1)}, indicating the type of match (exact, sub-string, approximate).
 }
 \details{
-Results are sorted from best to worst before returning, with row names indicating
-the original order of \code{name_df}.
+Results are sorted from best to worst, with row names indicating the original order
+of \code{name_df}.
 
 With \code{fuzzy=-1}, only exact matches are returned; With \code{fuzzy=0}, sub-string matches
 are also returned; and \code{fuzzy>0} returns an additional \code{fuzzy} approximate results.

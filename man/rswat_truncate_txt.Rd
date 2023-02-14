@@ -2,31 +2,27 @@
 % Please edit documentation in R/rswat_utils.R
 \name{rswat_truncate_txt}
 \alias{rswat_truncate_txt}
-\title{Render table data to the specified character width for printing}
+\title{Render character data to the specified character width for printing}
 \usage{
-rswat_truncate_txt(
-  txt,
-  max_len = NULL,
-  NA_char = "~",
-  more_char = "...",
-  just = "left",
-  trim = TRUE
-)
+rswat_truncate_txt(txt, max_len = NULL, just = "left", trim = TRUE)
 }
 \arguments{
-\item{txt}{character vector, or a data frame}
+\item{txt}{character vector}
 
 \item{max_len}{integer, the maximum width allowed for printing (\code{NULL} to set automatically)}
 
-\item{NA_char}{character, string to print in place of \code{NA}s}
+\item{just}{character either "left" (the default) or "right"}
 
-\item{more_char}{character, string to indicate that a field has been shortened}
-
-\item{trim}{logical, indicates to remove redundant whitespace (see details)}
+\item{trim}{logical, indicates to remove redundant whitespace and replace NAs with ~}
 }
 \value{
-character vector or data frame (the same length as \code{txt})
+character vector, the same length as \code{txt}, with all elements the same width
 }
 \description{
-Render table data to the specified character width for printing
+Elements of \code{txt} shorter than \code{max_len} are padded with whitespace. Elements
+the same width are unchanged, and elements longer than \code{max_len} are truncated.
+}
+\details{
+The default \code{just='left'} applies padding/truncation to the right side (end) of the
+string; and \code{just='right'} does it to the left side.
 }

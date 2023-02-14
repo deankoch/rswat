@@ -5,13 +5,10 @@
 \title{Search SWAT+ config files for a keyword}
 \usage{
 rswat_find(
-  pattern = "*",
-  f = NULL,
+  pattern = NULL,
   fuzzy = 0L,
-  docs = TRUE,
-  what = "header",
-  trim = 4L,
-  n_max = 10L,
+  vals = FALSE,
+  add_defs = TRUE,
   quiet = FALSE,
   .db = .rswat_db
 )
@@ -19,15 +16,11 @@ rswat_find(
 \arguments{
 \item{pattern}{character vector, the string(s) to search for}
 
-\item{f}{character vector, file (or file group) names to include in search}
-
 \item{fuzzy}{numeric, specifying tolerance for approximate matches (see details)}
 
-\item{docs}{logical, appends 'match', 'alias', and 'desc' fields to results}
+\item{vals}{logical, specifies to search values (in files) instead of parameter names}
 
-\item{trim}{integer between 1-5, higher means more simplification in printed result}
-
-\item{n_max}{positive integer, the maximum number of search results to return}
+\item{add_defs}{logical, appends 'match', 'alias', and 'desc' fields to results}
 
 \item{quiet}{logical, supresses console output}
 
@@ -37,16 +30,28 @@ rswat_find(
 A data frame of information about SWAT+ names matching the search pattern(s)
 }
 \description{
-Returns a data frame of information on matches of \code{pattern} against SWAT+ file and
-variable names. The default \code{'*'} matches everything, resulting in a data frame
-summarizing ALL fields in the specified file(s).
+Searches among loaded SWAT+ files for parameter names matching the search
+query \code{pattern}, returning a tibble of information on the matches. If
+\code{pattern} is a file name (and \code{vals=FALSE}) the function returns results
+on all parameters in the file, automatically loading the file as needed.
 }
 \details{
-\code{fuzzy = -1} is for exact matches only, \code{fuzzy = 0} includes results where
-\code{pattern} appears as a sub-string, and  \code{fuzzy > 0} includes the next \code{fuzzy} closest
-matches. See \code{?rswat_fuzzy_search}.
+The default (\code{fuzzy = 0}) settings return results where \code{pattern} appears as a
+sub-string, \code{fuzzy = -1} specifies exact matches only, and  \code{fuzzy > 0} returns,
+in addition, the next \code{fuzzy} closest matches. See \code{?rswat_fuzzy_search}.
 
-By default the function searches all loaded files. Otherwise, the function searches
-in the subset of files specified by \code{include}, loading missing files as needed.
-Get a list of files and their load state with \code{rswat_open()}.
+Definitions are automatically matched to parameters when \code{add_defs=TRUE} (the
+default). In cases of discrepancies in spelling, \code{rswat} attempts to match names
+automatically to aliases. A three-star match score is assigned, with one or
+two stars indicating some doubt.
+
+If \code{vals=TRUE}, the function searches parameter values (as strings) instead of
+names and allows file name queries. This can be useful for finding (character
+class) parameters that link to other parameters by naming a file.
+
+The special character \code{'*'} matches all parameters in all (loaded) files,
+returning everything in a single tibble. This will take a few seconds if you have
+\code{add_defs=TRUE}.
+
+Get a list of files and their load state with \code{rswat_open()} or \code{rswat_files()}.
 }

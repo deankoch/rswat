@@ -4,25 +4,14 @@
 \alias{rswat_summarize_files}
 \title{Print a summary of a data frame of SWAT+ file information}
 \usage{
-rswat_summarize_files(
-  files_df,
-  loaded = NA,
-  known = NA,
-  n = NULL,
-  level = "file",
-  quiet = FALSE
-)
+rswat_summarize_files(files_df, level = "file", quiet = FALSE, .db = .rswat_db)
 }
 \arguments{
 \item{files_df}{data frame, output from \code{rswat_files}}
 
-\item{loaded}{logical, indicates that the files are all loaded}
+\item{level}{character, the category to summarize over (see details)}
 
-\item{known}{logical, indicates that the files are all recognized by rswat}
-
-\item{n}{integer, the maximum number of results to print}
-
-\item{level}{character, what category to summarize over (see details)}
+\item{quiet}{logical, suppresses console messages}
 }
 \value{
 returns a data frame invisibly, and prints the first \code{n} lines of it
@@ -34,12 +23,8 @@ returns information about every file on its own row.
 }
 \details{
 With \code{level='group'} each group gets a row, indicating how many files there are
-and how many are loaded, along with a list of the file names (truncated to the
-console width, or \code{max_len} if it is assigned). \code{level='type'} does the same but
-with summaries of the four file types, and shows group names within each type
-category instead of file names.
-
-\code{n} controls the maximum number of rows to print in the console (all rows are
-returned invisibly by the function). \code{loaded} and \code{known} modify the message
-printed about the files.
+and how many are loaded, along with a list of the file names. \code{level='type'} does
+the same but with summaries of the four file types, and group names within each type
+category instead of file names. In both cases, the time modified field indicates the
+latest modification within the category
 }

@@ -2,28 +2,30 @@
 % Please edit documentation in R/rswat_docs.R
 \name{rswat_docs}
 \alias{rswat_docs}
-\title{Search variable names and description text in the SWAT+ I/O PDF}
+\title{Search variable names and description text in the SWAT+ inputs PDF}
 \usage{
-rswat_docs(name = NULL, f = NULL, quiet = FALSE, .db = .rswat_db)
+rswat_docs(pattern = "*", fuzzy = 0L, defs = FALSE, .db = .rswat_db)
 }
 \arguments{
-\item{f}{character vector, the file names (sections of document) to include in search}
-
-\item{.db}{rswat_db object, for internal use}
-
 \item{pattern}{character vector, the search keyword string}
 
-\item{fuzzy}{integer, controlling the number of results returned (see details)}
+\item{fuzzy}{integer controlling the number of results returned (see \code{?rswat_fuzzy_search})}
 
-\item{intro}{logical, if TRUE, prints the introductory text for a file}
+\item{defs}{logical indicating to search definitions text instead of parameter names}
 
-\item{descriptions}{logical, if TRUE, searches description text instead of variable names}
-
-\item{desc_len}{integer, maximum number description text characters to return (per variable)}
+\item{.db}{rswat_db object for internal use}
 }
 \value{
-data frame containing search results and their location in the PDF
+tibble containing search results and their location in the PDF
 }
 \description{
-Search variable names and description text in the SWAT+ I/O PDF
+Returns a tibble with SWA+ name/definition pairs matching \code{pattern}.
+}
+\details{
+The function uses \code{rswat_fuzzy_search} to look for parameter names containing
+the string \code{pattern}. If \code{pattern} exactly matches a SWAT+ file name, the function
+returns all known name/definition pairs for that file.
+If \code{defs=TRUE} the function searches in definitions instead of names and file
+names are ignored. Increase \code{fuzzy} to get approximate results or set it to -1
+to get exact matches only (see \code{?rswat_fuzzy_search}).
 }
