@@ -23,6 +23,30 @@ rswat_empty_df = function(nm) {
   stop('nm had unexpected class (it should be character of numeric)')
 }
 
+
+#' Return a subset of data frame columns in a specified order
+#'
+#' Columns of `df_unordered` named in `nm_print` are returned. `nm_print` may contain
+#' names not appearing in `df_unordered`, but there should be at least one match or else
+#' an empty data frame is returned without warning.
+#'
+#' @param df_unordered a data frame with named columns
+#' @param nm_print column names to return, in order
+#'
+#' @return a data frame, with (possibly) reordered columns
+#' @export
+rswat_order_columns = function(df_unordered, nm_print) {
+
+  # match data frame names to print names
+  cols_out = match(nm_print, names(df_unordered))
+
+  # unmatched data frame names are omitted
+  cols_out = cols_out[ !is.na(cols_out) ]
+  return(df_unordered[cols_out])
+}
+
+
+
 #' Validity check for a directory
 #'
 #' Helper function to check if a directory string points to an existing location.
@@ -74,64 +98,26 @@ rswat_validate_fpath = function(p, extension=NA, p_name='p') {
 }
 
 
-#' Render table data to the specified character width for printing
+#' Render character data to the specified character width for printing
 #'
+#' Elements of `txt` shorter than `max_len` are padded with whitespace. Elements
+#' the same width are unchanged, and elements longer than `max_len` are truncated.
 #'
+#' The default `just='left'` applies padding/truncation to the right side (end) of the
+#' string; and `just='right'` does it to the left side.
 #'
-#' @param txt character vector, or a data frame
+#' @param txt character vector
 #' @param max_len integer, the maximum width allowed for printing (`NULL` to set automatically)
-#' @param NA_char character, string to print in place of `NA`s
-#' @param trim logical, indicates to remove redundant whitespace (see details)
-#' @param more_char character, string to indicate that a field has been shortened
+#' @param just character either "left" (the default) or "right"
+#' @param trim logical, indicates to remove redundant whitespace and replace NAs with ~
 #'
-#' @return character vector or data frame (the same length as `txt`)
+#' @return character vector, the same length as `txt`, with all elements the same width
 #' @export
-rswat_truncate_txt = function(txt,
-                              max_len = NULL,
-                              NA_char = '~',
-                              more_char = '...',
-                              just = 'left',
-                              trim = TRUE) {
+rswat_truncate_txt = function(txt, max_len = NULL, just = 'left', trim = TRUE) {
 
-  # handle data frames
-  if( is.data.frame(txt) )
-  {
-    # set default max_len based on R option (only tested on base windows GUI)
-    if( is.null(max_len) ) max_len = unlist(options('width'))
-
-    # check for names
-    idx_last = length(txt)
-    if( is.null(names(txt)[idx_last]) ) stop('last column of txt must be named')
-    n_last_name = nchar( names(txt)[idx_last] )
-
-    # convert all factor columns to character
-    is_fac = sapply(txt, is.factor)
-    txt[is_fac] = lapply(txt[is_fac], as.character)
-
-    # replace NA with character and add padding to all but last column
-    txt[-idx_last] = replace(txt[-idx_last], is.na(txt[-idx_last]), NA_char)
-    txt[, -idx_last] = apply(txt[, -idx_last, drop=FALSE], 2L, \(x) {
-
-      # columns padded to common length
-      rswat_truncate_txt(x,
-                         max_len = NULL,
-                         NA_char = NA_char,
-                         more_char = more_char,
-                         just = just)
-    })
-
-    # measure width of print method output without last column
-    txt_printed = utils::capture.output( print(txt[-idx_last], row.names=T) )
-    len_first = tail(txt_printed, nrow(txt)) |> nchar() |> max()
-
-    # set the max width for the last column
-    max_len_last = max_len - len_first - 2L
-    if(max_len_last < n_last_name ) max_len_last = max_len
-
-    # truncate, return everything
-    txt[[idx_last]] = rswat_truncate_txt(txt[[idx_last]], max_len_last, NA_char, more_char)
-    return(txt)
-  }
+  # characters to indicate NAs and omitted text
+  more_char = '...'
+  NA_char = '~'
 
   # clean up input text and set default max_len to longest string length
   if(trim) txt = gsub('\\s+', ' ', replace(txt, is.na(txt), NA_char), perl=TRUE) |> trimws()
@@ -155,7 +141,7 @@ rswat_truncate_txt = function(txt,
 
   # pad to max_len using white-space
   n_pad = pmax(0, max_len - nchar(txt_short))
-  txt_pad = sapply(n_pad, \(n) paste(rep(' ', n), collapse=''))
+  txt_pad = sapply(n_pad, \(m) paste(rep(' ', m), collapse=''))
   if( just == 'left' ) return( paste0(txt_short, txt_pad) )
   return( paste0(txt_pad, txt_short) )
 }
@@ -442,7 +428,7 @@ rswat_string_dist = function(pattern, lu,
     return(dist_out)
   }
 
-  # # count the number of characters in pattern
+  # count the number of characters in pattern
   pattern_len = nchar(pattern)
 
   # convert to lowercase
@@ -459,6 +445,7 @@ rswat_string_dist = function(pattern, lu,
   # identify exact matches and initialize distances
   is_exact = lu %in% pattern
   dist_out = as.integer(!is_exact)
+  if(pattern_len == 0L) return(dist_out)
 
   # find Levenstein distances to sub-strings as proportion of pattern length
   dist_sub = as.vector( adist(pattern, lu, costs=costs, partial=TRUE) ) / pattern_len
