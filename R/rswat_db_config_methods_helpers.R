@@ -80,6 +80,12 @@ rswat_scan_dir = function(swat_dir=NULL, cio_df=NULL, f=NULL)
   is_weather = cio_new[['type']] %in% 'weather'
   weather_group_list = strsplit(basename(cio_new[['file']][is_weather]), split='\\.')
   cio_new[['group']][is_weather] = sapply(weather_group_list, \(x) x[[2L]])
+
+  # groups for backups
+  is_backup = cio_new[['type']] %in% 'backup'
+  is_zip = endsWith(cio_new[['file']][is_backup], '.zip')
+  cio_new[['group']][is_backup] = c('dir', 'zip')[ 1L + as.integer(is_zip) ]
+
   return(cio_new)
 }
 

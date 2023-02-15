@@ -38,7 +38,7 @@ rswat_exec = function(quiet=FALSE, .db=.rswat_db) {
   if( !quiet ) message(paste('SWAT+ simulation finished in', msg_timer))
 
   # scan for changes in directory and return list of files modified
-  .db$refresh_cio_df()
+  .db$refresh_cio_df(quiet=quiet)
   new_output_files = rswat_files(quiet=TRUE, .db=.db)
   is_new = !( new_output_files[['file']] %in% old_output_files[['file']] )
   if( any(!is_new) )
@@ -115,19 +115,16 @@ rswat_backup = function(dest = NULL,
   swat_dir = .db$get_swat_dir()
   if( is.null(exclude) ) dest = file.path(swat_dir, paste0('.rswat_backup_', date_time_string))
 
-  # make a list of known SWAT+ files in current project
+  # make a list of known SWAT+ files in current project and omit backups
   file_df = rswat_files(known = TRUE,
                         include = include,
                         exclude = exclude,
                         refresh = TRUE,
                         quiet = TRUE,
-                        .db = .db)
-
-  # omit existing backups and files not found on disk
-  file_df = file_df[file_df[['exists']] & (file_df[['type']] != 'backup'), , drop=FALSE]
-  n_file = nrow(file_df)
+                        .db = .db) |> dplyr::filter(type != 'backup')
 
   # handle no files case
+  n_file = nrow(file_df)
   if(n_file == 0L) {
 
     # different advice depending on include/exclude
@@ -176,7 +173,7 @@ rswat_backup = function(dest = NULL,
   if(zip) {
 
     # rswat_zip is just utils::zip with stdout discarded so as to not spam the console
-    zip_value = rswat_zip(dest, file_df[['path']], quiet=quiet)
+    zip_value = rswat_zip(dest, file.path(swat_dir, file_df[['file']]), quiet=TRUE)
     copy_success = file.exists(dest)
     file_written = dest
 
@@ -191,18 +188,18 @@ rswat_backup = function(dest = NULL,
     if(!dir.exists(dest)) dir.create(dest)
     msg_progress = file_df[['file']] |> rwat_progress()
     copy_success = logical(length(msg_progress)) |> stats::setNames(file_df[['file']])
-    for(p in file_df[['path']]) {
+    for(f in file_df[['file']]) {
 
-      f = basename(p)
       if(!quiet) msg_progress[f] |> cat()
-      copy_success[f] = file.copy(p, file.path(dest, f), overwrite=TRUE, copy.date=TRUE)
+      src_path = file.path(swat_dir, f)
+      copy_success[f] = file.copy(src_path, file.path(dest, f), overwrite=TRUE, copy.date=TRUE)
     }
 
     # make a a list of files written and their total size
     if(!quiet) cat('\n')
     file_written = file.path(dest, file_df[['file']][copy_success])
     msg_size = sum(file_df[['size']][copy_success]) |> units::set_units(Megabytes) |>
-      round(2L) |> as.character() |> paste('Mb')
+      round(3L) |> as.character() |> paste('Mb')
   }
 
   # report any errors then report on what was written
@@ -212,7 +209,7 @@ rswat_backup = function(dest = NULL,
     if(!quiet) message(paste('done. Wrote', msg_size))
   }
 
-  # return but don't show the file paths written
+  # return (but don't print) the file paths written
   return( invisible(file_written) )
 }
 
@@ -220,119 +217,137 @@ rswat_backup = function(dest = NULL,
 #' Restore a backup of a SWAT+ project, or a subset of its files
 #'
 #' `backup` must point to either a directory with SWAT+ project files, or
-#' else a zip file containing them. If `backup` is `NULL`, the function looks in the
-#' currently loaded SWAT+ project directory and selects the most recently modified
-#' file or directory with name starting with '.rswat_backup'.
+#' else a zip file containing them. If `backup` is `NULL`, the function returns a tibble
+#' of information on available backups found in the current SWAT+ project directory.
 #'
 #' Users must toggle `overwrite=TRUE` to enable copying. When it is `FALSE` (the default),
 #' the function returns a data frame of files that would be created/modified, but makes
 #' no changes to the files on disk.
 #'
-#' When overwrite is `TRUE`, users can toggle `wipe=TRUE` to first erase all known SWAT+ files
-#' in the currently loaded project before copying over the backups. Exceptions which are never
-#' deleted include: sub-directories, existing `rswat` backups, and unknown config files (ie
-#' those not listed in 'file.cio').
-#'
-#' `include` and `exclude` define a subset of files in the current project directory
-#' (see `?rswat_files`) to restore from the backup. The function will attempt to overwrite
-#' them with the files of the same name in `backup`, ignoring files not found in `backup`.
-#' The function ignores files in `backup` that are not identified by `include` (eg config
-#' files in the backup that are missing from the current directory), unless `include=NULL`.
-#'
-#' `include=NULL` (the default) indicates to restore everything in `backup`, with the
-#' exception of any file names mentioned specifically in `exclude`.
-#'
 #' The call to `utils::unzip` uses `junkpaths=TRUE`, so any directory structure in the
-#' zip file will be collapsed (probably a bad thing). It is recommended to only load
-#' zip files created by `rswat` (see `?rswat_export`)
+#' zip file will be collapsed (probably a bad thing when unintended). It is recommended
+#' to only load zip files created by `rswat` (see `?rswat_export`)
 #'
-#' @param backup character, path to the desired output file or folder
-#' @param include character vector, a set of file, group, or type names to include
-#' @param exclude character vector, a set of file, group, or type names to exclude
-#' @param zip logical, indicates to write a zip instead of a folder
-#' @param overwrite logical, enables modifying or deleting contents of dest
-#' @param wipe  logical, deletes the file or folder dest before writing to it
+#' @param backup character, path to the
+#' @param dest character, path to the desired output file or folder
+#' @param overwrite logical, enables modifying or deleting contents destination directory
 #' @param quiet logical, suppresses console output
 #' @param .db rswat reference object, for internal use
 #'
 #' @return character vector, the path(s) to the file(s) written
 #' @export
 rswat_restore = function(backup = NULL,
-                         include = NULL,
-                         exclude = NULL,
+                         dest = .db$get_swat_dir(),
                          overwrite = FALSE,
-                         wipe = FALSE,
                          quiet = FALSE,
                          .db = .rswat_db) {
 
-  # copy current SWAT+ project directory and known file info
-  swat_dir = .db$get_swat_dir()
-  existing_files = rswat_files(.db=.db) |> dplyr::filter(exists)
-  file_df = rswat_files(known = TRUE,
-                        include = include,
-                        exclude = c(exclude, 'backup'),
-                        refresh = TRUE,
-                        quiet = TRUE,
-                        .db = .db)
 
-  # omit existing backups and files not found on disk
-  file_df = file_df[file_df[['exists']] & (file_df[['type']] != 'backup'), , drop=FALSE]
-  n_file = nrow(file_df)
+  # helper for below, lists contents of a backup directory or zip (p=path, g=group)
+  open_backup = function(p, g=NULL) {
 
-  # if backup path is not given, look for newest backup in current directory
+    if( is.null(g) ) g =  c('dir', 'zip')[ 1L + as.integer(endsWith(p, '.zip')) ]
+    msg_fail = paste('there was a problem with the path', p)
+    if( is.na(g) ) stop(msg_fail)
+    if( g == 'dir' ) return( list.files(p) )
+    if( g == 'zip' ) return( unzip(p, list=TRUE)[['Name']] )
+    stop(msg_fail)
+  }
+
+  # normalize and validate destination path
+  dest = dest |> normalizePath(winslash='/')
+
+  # get SWAT+ file info on dest as data frame
+  existing_files = rswat_scan_dir(dest, f=list.files(dest))
+
+  # if backup path is not given, return a tibble listing backups in current directory
   if( is.null(backup) )
   {
-    existing_backup = rswat_files('backup', .db=.db) |> dplyr::arrange(dplyr::desc(modified))
-    if( nrow(existing_backup) == 0L ) stop(paste('no backup files found in', swat_dir))
-    backup = existing_backup[['path']][1L]
-    msg_modified = paste('last modified', existing_backup[['modified']][1L])
-    if( !quiet ) message(paste0('selecting backup = "', basename(backup), '"\n', msg_modified))
+    # list files in each backup
+    backup_df = rswat_files(quiet=TRUE, .db=.db) |> dplyr::filter(type=='backup')
+    if( nrow(backup_df) > 0L )
+    {
+      # function open_backup is defined above)
+      backup_files = Map(open_backup,
+                         p = file.path(dest, backup_df[['file']]),
+                         g = backup_df[['group']])
+
+      # add some summary info and remove clutter for output
+      backup_df = backup_df |>
+        dplyr::mutate('n_file' = sapply(backup_files, length)) |>
+        dplyr::mutate('files' = sapply(backup_files, \(v) paste(v, collapse=', '))) |>
+        dplyr::select(c('file', 'group', 'n_file', 'files', 'size', 'modified')) |>
+        dplyr::arrange('modified')
+
+      if(!quiet) message( paste('found', nrow(backup_df), 'backups in', dest) )
+      return( dplyr::tibble(backup_df) )
+    }
+
+    # no backups case returns empty tibble invisibly
+    if(!quiet) message( paste('no backup files found in', dest) )
+    return( invisible(dplyr::tibble()) )
   }
 
-  # rswat_scan_dir returns file info for directories, or empty data frame for zip
-  backup_df = rswat_scan_dir(backup, f=list.files(backup))
-  if( endsWith(backup, '.zip') & ( nrow(backup_df) == 0L ) ) {
+  # validate two possible paths and pick the first one that works
+  path_test = c(backup, file.path(dest, backup)) |> normalizePath(winslash='/', mustWork=FALSE)
+  path_exists = file.exists(path_test)
+  if( !any(path_exists) ) stop( paste('invalid path', backup) )
+  backup_norm = path_test[ which(path_exists)[1L] ]
 
-    # get a list of files from the backup zip
-    unzip_df = utils::unzip(backup, list=TRUE)[c('Name', 'Date')] |>
-      dplyr::rename(path='Name', modified='Date') |>
-      dplyr::mutate(file = basename(path))
+  # get files list from backup and compare with existing files list
+  backup_files = open_backup(backup_norm)
+  existing_files = existing_files |>
+    dplyr::mutate(add = FALSE) |>
+    dplyr::mutate(overwrite = file %in% backup_files)
 
-    # convert to standardized data frame of file info, and exclude backups
-    backup_df = rswat_scan_dir(backup, f=unzip_df[['file']]) |>
-      dplyr::mutate(modified = unzip_df[['modified']]) |>
-      dplyr::filter(type != 'backup')
+  # identify any new files introduced from this backup
+  new_filenames = backup_files[ !( backup_files %in% existing_files[['file']] ) ]
+  new_files = rswat_scan_dir(dest, f=new_filenames) |>
+    dplyr::mutate(add = TRUE) |>
+    dplyr::mutate(overwrite = FALSE)
+
+  # merge the two lists and remove clutter
+  restore_summary = rbind(existing_files, new_files) |>
+    dplyr::filter(overwrite|add) |>
+    dplyr::select(c('file', 'type', 'overwrite', 'add')) |>
+    dplyr::mutate(completed = FALSE)
+
+  # count files being changed
+  n_add = restore_summary[['add']] |> sum()
+  n_over = restore_summary[['overwrite']] |> sum()
+  msg_backup = paste('this will add', n_add, 'new file(s) and overwrite', n_over, 'in', dest)
+  if(!quiet) message(msg_backup)
+
+  # write changes or print a message
+  if( !overwrite ) { if(!quiet) message('set overwrite=TRUE to write changes') } else {
+
+    # build a message about the job
+    n_file = n_add + n_over
+    is_zip = endsWith(backup_norm, '.zip')
+    msg_extract = paste(ifelse(is_zip, 'unzipping', 'copying'), n_file, 'file(s) to', dest)
+    if(!quiet) message(msg_extract)
+
+    # copy/zip
+    fn = restore_summary[['file']]
+    if(is_zip)
+    {
+      # return value is the file path copied
+      copied = utils::unzip(backup_norm, exdir=dest, overwrite=TRUE, junkpaths=TRUE)
+      is_copied = fn %in% basename(copied)
+
+    } else {
+
+      # return value is logical indicating success
+      is_copied = file.copy(from = file.path(backup_norm, fn),
+                            to = file.path(dest, fn),
+                            overwrite = TRUE)
+    }
+
+    # copy status gets reported in output
+    restore_summary[['completed']][is_copied] = TRUE
   }
 
-  # identify files to copy
-  is_requested = backup_df[['file']] %in% file_df_test[['file']]
-  if( is_requested) is_requested = rep(TRUE, )
-  files_requested =
-  files_requested
-
-
-  existing_files
-
-  backup_df[['file']]
-
-
-  # handle no files case
-  if(n_file == 0L) {
-
-  }
-
-
-
-  is_zip = FALSE
-  n_files = 2
-
-  if( !quiet ) message(paste(ifelse(overwrite, 'selected', 'copying'),
-                             n_files, 'SWAT+ file(s)',
-                             'from backup', ifelse(is_zip, 'file:', 'directory:'),
-                             backup))
-
-  #utils::unzip(backup, , junkpaths=TRUE)
-
+  return(restore_summary)
 }
 
 

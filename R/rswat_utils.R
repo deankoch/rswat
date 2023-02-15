@@ -191,14 +191,13 @@ rswat_rename = function(d, aliases=NULL) {
 #' Make a vector of messages for reporting progress in console via `base::cat`
 #'
 #' This takes a vector of object names and returns a short message for each one,
-#' consisting of a percentage (how far through the list are we) followed by the
+#' consisting of a percentage - how far through the list are we - followed by the
 #' name.
 #'
-#' Strings are truncated/padded to `n_max` (by default, the console width as given
-#' by the R option 'width') and each begins with the special symbol '\r', which
+#' Strings are by default truncated/padded to `n_max`, the console width as given
+#' by the R option 'width', and each begins with the special symbol '\r', which
 #' (when passed to `cat`) asks the terminal or console in which R is running to
 #' do a carriage return and overwrite the existing line.
-#'
 #'
 #' @param nm character vector, the objects to progress through
 #' @param n_max integer or NULL, the maximum line width for printing
@@ -568,8 +567,11 @@ rswat_amatch = function(m) {
 #' @export
 rswat_zip = function(zipfile, files, quiet=FALSE) {
 
+  # find system call to zip
   zip = Sys.getenv('R_ZIPCMD', 'zip')
-  flags = '-r9X'
+
+  # set arguments for junk paths, better compression, exclude additional attributes
+  flags = '-j9X'
   args = c(flags, shQuote(path.expand(zipfile)), shQuote(files))
   if(sum(nchar(c(args, Sys.getenv()))) + length(args) > 8000) {
 
