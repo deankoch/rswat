@@ -78,7 +78,7 @@ rswat_db$methods( list(
         line_df_temp[['type']] <<- cio_df[['type']][is_new]
         line_df_temp[['group']] <<- cio_df[['group']][is_new]
 
-        # copy contents of temporary data frame to the persistent
+        # copy contents of temporary data frame to the persistent one
         line_df <<- rbind(subset(line_df, file != f), line_df_temp)
         rownames(line_df) <<- seq(nrow(line_df))
 
@@ -155,17 +155,18 @@ rswat_db$methods( list(
 
         # gather classes and precision levels of column
         nm_class = unlist( lapply(stor_df[[f]][[tn]], class) )
-        n_prec = line_df_temp[is_table & !is_head,, drop=FALSE] |>
+        n_prec_summary = line_df_temp[is_table & !is_head,, drop=FALSE] |>
           dplyr::group_by(field_num) |>
           dplyr::summarize(n_prec = ifelse(all(is.na(n_prec)), NA, max(n_prec, na.rm=TRUE)) ) |>
           dplyr::arrange(field_num) |>
           dplyr::pull(n_prec)
 
         # propagate the variable names, classes, n_prec to all rows
+        field_idx = line_df_temp[['field_num']][is_table]
         line_df_temp[is_table,] <<- line_df_temp[is_table,, drop=FALSE] |>
-          dplyr::mutate(name = nm_head[field_num]) |>
-          dplyr::mutate(class = nm_class[field_num]) |>
-          dplyr::mutate(n_prec = n_prec[field_num])
+          dplyr::mutate(name = nm_head[field_idx]) |>
+          dplyr::mutate(class = nm_class[field_idx]) |>
+          dplyr::mutate(n_prec = n_prec_summary[field_idx])
       }
     }
 
