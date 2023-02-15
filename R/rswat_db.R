@@ -186,11 +186,23 @@ rswat_db = setRefClass('rswat_db',
     },
 
     # refresh cio_df by scanning project directory and labeling files based on their extension
-    refresh_cio_df = function() {
+    refresh_cio_df = function(quiet=TRUE) {
 
       if(is.na(swat_dir)) stop('project directory must be assigned first')
       new_cio_df = rswat_scan_dir(swat_dir, cio_df)
-      cio_df <<- new_cio_df
+
+      # message if files previously found on disk are no longer there
+      df_gone = new_cio_df |> dplyr::filter(!exists) |> dplyr::filter(type != 'config')
+      if(nrow(df_gone) > 0L)
+      {
+        # these are probably files deleted by the user
+        gone_msg = paste(nrow(df_gone), 'file(s) no longer found in project directory:' ) |>
+          paste(paste(df_gone[['file']], collapse = ', '))
+        if(!quiet) message(gone_msg)
+      }
+
+      # remove any files no longer found on disk before updating
+      cio_df <<- new_cio_df |> dplyr::filter(exists)
       if(nrow(cio_df) > 0L) rownames(cio_df) <<- seq(nrow(cio_df))
     },
 

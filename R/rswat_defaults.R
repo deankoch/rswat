@@ -78,8 +78,7 @@
                                   'size',
                                   'modified',
                                   'known',
-                                  'loaded',
-                                  'exists')
+                                  'loaded')
 
 .rswat_gv_match_docs_trim = function(trim) switch(trim,
 

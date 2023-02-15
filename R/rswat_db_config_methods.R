@@ -10,7 +10,7 @@ rswat_db$methods( list(
     # refresh files list and remove any existing data that would be replaced below
     if( refresh )
     {
-      refresh_cio_df()
+      refresh_cio_df(quiet=TRUE)
       line_df <<- line_df[!(line_df[['file']] %in% f),]
       stor_df <<- stor_df[!(names(stor_df) %in% f)]
       cio_df[['loaded']][ cio_df[['file']] %in% f ] <<- FALSE

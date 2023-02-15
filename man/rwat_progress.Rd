@@ -16,12 +16,12 @@ a character vector the same length as \code{nm}
 }
 \description{
 This takes a vector of object names and returns a short message for each one,
-consisting of a percentage (how far through the list are we) followed by the
+consisting of a percentage - how far through the list are we - followed by the
 name.
 }
 \details{
-Strings are truncated/padded to \code{n_max} (by default, the console width as given
-by the R option 'width') and each begins with the special symbol '\r', which
+Strings are by default truncated/padded to \code{n_max}, the console width as given
+by the R option 'width', and each begins with the special symbol '\r', which
 (when passed to \code{cat}) asks the terminal or console in which R is running to
 do a carriage return and overwrite the existing line.
 }

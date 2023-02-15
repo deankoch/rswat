@@ -74,15 +74,15 @@ rswat = function(swat_dir = NULL,
   # read file.cio to add type and group labels
   rswat_open(f='file.cio', refresh=FALSE, quiet=TRUE, .db=.db)
 
+  # TODO: check this out more carefully
   # refresh again (why is this necessary?)
-  .db$refresh_cio_df()
+  .db$refresh_cio_df(quiet=FALSE)
 
   # load other files on request
   if( !is.null(include) )
   {
     file_df = rswat_files(include=include, exclude=exclude, refresh=FALSE, quiet=TRUE, .db=.db)
-    is_needed = file_df[['exists']] & !file_df[['loaded']]
-    if( refresh ) is_needed = is_needed & !file_df[['loaded']]
+    is_needed = !file_df[['loaded']]
 
     # load included files or else warn if there aren't any left after exclusions
     if( !any(is_needed))  { if(!quiet) message('all requested files loaded') } else {
@@ -96,7 +96,7 @@ rswat = function(swat_dir = NULL,
   rswat_check(quiet=quiet, .db=.db)
 
   # print this advice once only, when project folder is first assigned
-  if(!quiet & !is_assigned) message('Browse files with rswat_files() and rswat_open()')
+  if(!quiet & !is_assigned) message('browse files with rswat_files() and rswat_open()')
   return(invisible())
 }
 
@@ -336,6 +336,12 @@ rswat_summarize_files = function(files_df,
     return( dplyr::tibble(rswat_order_columns(files_df, nm_print)) )
   }
 
+  # wrapper for bas::max() that doesn't fail on length zero input
+  my_max = function(x) {
+
+    if( !all(is.na(x)) & ( length(x) > 0 ) ) { max(x, na.rm=TRUE) } else { as.POSIXct(NA) }
+  }
+
   # summarize groups
   if(level == 'group') files_df = files_df |>
     dplyr::mutate(group = factor(group, levels=unique(group))) |>
@@ -343,7 +349,7 @@ rswat_summarize_files = function(files_df,
     dplyr::summarize(type = head(unique(type), 1L),
                      loaded = paste0(sum(loaded), '/', dplyr::n()),
                      size = sum(size, na.rm=TRUE),
-                     modified = max(modified, na.rm=TRUE),
+                     modified = my_max(modified),
                      files = paste(file, collapse=', ')) |>
     dplyr::mutate(group = as.character(group))
 
@@ -353,7 +359,7 @@ rswat_summarize_files = function(files_df,
       dplyr::group_by(type) |>
       dplyr::summarize(loaded = paste0(sum(loaded), '/', dplyr::n()),
                        size = sum(size, na.rm=TRUE),
-                       modified = max(modified, na.rm=TRUE),
+                       modified = my_max(modified),
                        groups = paste(unique(group), collapse = ', ')) |>
       dplyr::mutate(type = as.character(type))
 

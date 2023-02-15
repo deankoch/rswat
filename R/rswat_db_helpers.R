@@ -120,8 +120,11 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
     }
 
     # create a message about non-existent files
-    df_unknown = .db$get_cio_df(what=c('file', 'type', 'exists')) |> dplyr::filter(!exists)
-    if( nrow(df_unknown) > 0 )  unknown_msg = 'file(s) listed but not found on disk:' |>
+    df_unknown = .db$get_cio_df(what=c('file', 'type', 'exists')) |>
+      dplyr::filter(!exists) |>
+      dplyr::filter(type=='config')
+
+    if( nrow(df_unknown) > 0 )  unknown_msg = 'file(s) listed in file.cio but not found on disk:' |>
       paste(paste(df_unknown[['file']], collapse = ', '))
   }
 
@@ -137,9 +140,6 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
 
   # print file.cio info
   cat(swat_msg['cio'])
-  if( !is.null(unknown_msg) ) message(unknown_msg)
-  msg_empty = 'file.cio was not found in current directory. Import a project with rswat_copy'
-  if(!is_found['cio']) message(msg_empty)
 
   # print weather and simulation dates info
   cat(swat_msg['climate'], '\n')
@@ -147,7 +147,9 @@ rswat_summarize_db = function(ok_char=.rswat_ok_char(), .db=.rswat_db) {
   cat(paste0(swat_msg['time'], '\n', swat_msg['print'], '\n\n'))
   #message(hbreak_msg)
 
-
+  if( !is.null(unknown_msg) ) message(unknown_msg)
+  msg_empty = 'file.cio was not found in current directory. Import a project with rswat_copy'
+  if(!is_found['cio']) message(msg_empty)
 
   return(invisible())
 

@@ -42,7 +42,7 @@ rswat_find = function(pattern = NULL,
                       .db = .rswat_db) {
 
   # scan for changes and make a table of all recognized files on disk
-  .db$refresh_cio_df()
+  .db$refresh_cio_df(quiet=quiet)
   files_ondisk = .db$get_cio_df() |> dplyr::filter(known==TRUE) |> dplyr::pull(file)
 
   # get list of loaded files

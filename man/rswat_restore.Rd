@@ -6,60 +6,37 @@
 \usage{
 rswat_restore(
   backup = NULL,
-  include = NULL,
-  exclude = NULL,
+  dest = .db$get_swat_dir(),
   overwrite = FALSE,
-  wipe = FALSE,
   quiet = FALSE,
   .db = .rswat_db
 )
 }
 \arguments{
-\item{backup}{character, path to the desired output file or folder}
+\item{backup}{character, path to the}
 
-\item{include}{character vector, a set of file, group, or type names to include}
+\item{dest}{character, path to the desired output file or folder}
 
-\item{exclude}{character vector, a set of file, group, or type names to exclude}
-
-\item{overwrite}{logical, enables modifying or deleting contents of dest}
-
-\item{wipe}{logical, deletes the file or folder dest before writing to it}
+\item{overwrite}{logical, enables modifying or deleting contents destination directory}
 
 \item{quiet}{logical, suppresses console output}
 
 \item{.db}{rswat reference object, for internal use}
-
-\item{zip}{logical, indicates to write a zip instead of a folder}
 }
 \value{
 character vector, the path(s) to the file(s) written
 }
 \description{
 \code{backup} must point to either a directory with SWAT+ project files, or
-else a zip file containing them. If \code{backup} is \code{NULL}, the function looks in the
-currently loaded SWAT+ project directory and selects the most recently modified
-file or directory with name starting with '.rswat_backup'.
+else a zip file containing them. If \code{backup} is \code{NULL}, the function returns a tibble
+of information on available backups found in the current SWAT+ project directory.
 }
 \details{
 Users must toggle \code{overwrite=TRUE} to enable copying. When it is \code{FALSE} (the default),
 the function returns a data frame of files that would be created/modified, but makes
 no changes to the files on disk.
 
-When overwrite is \code{TRUE}, users can toggle \code{wipe=TRUE} to first erase all known SWAT+ files
-in the currently loaded project before copying over the backups. Exceptions which are never
-deleted include: sub-directories, existing \code{rswat} backups, and unknown config files (ie
-those not listed in 'file.cio').
-
-\code{include} and \code{exclude} define a subset of files in the current project directory
-(see \code{?rswat_files}) to restore from the backup. The function will attempt to overwrite
-them with the files of the same name in \code{backup}, ignoring files not found in \code{backup}.
-The function ignores files in \code{backup} that are not identified by \code{include} (eg config
-files in the backup that are missing from the current directory), unless \code{include=NULL}.
-
-\code{include=NULL} (the default) indicates to restore everything in \code{backup}, with the
-exception of any file names mentioned specifically in \code{exclude}.
-
 The call to \code{utils::unzip} uses \code{junkpaths=TRUE}, so any directory structure in the
-zip file will be collapsed (probably a bad thing). It is recommended to only load
-zip files created by \code{rswat} (see \code{?rswat_export})
+zip file will be collapsed (probably a bad thing when unintended). It is recommended
+to only load zip files created by \code{rswat} (see \code{?rswat_export})
 }
