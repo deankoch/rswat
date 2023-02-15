@@ -13,7 +13,7 @@
 #' @include rswat_db.R rswat_db_helpers.R
 #' @include rswat.R rswat_utils.R rswat_defaults.R
 #' @include rswat_db_config_methods.R rswat_db_config_methods_helpers.R
-#' @include rswat_write_methods.R rswat_write_methods_helpers.R
+#' @include rswat_write.R
 #' @include rswat_find.R
 #' @include rswat_run.R
 #'
