@@ -6,7 +6,7 @@
 \usage{
 rswat_restore(
   backup = NULL,
-  dest = .db$get_swat_dir(),
+  dest = NULL,
   overwrite = FALSE,
   quiet = FALSE,
   .db = .rswat_db

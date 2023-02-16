@@ -1,3 +1,263 @@
+
+#' Write parameters to SWAT+ config file(s)
+#'
+#' Returns a tibble summarizing modifications to SWAT+ configuration file(s) corresponding
+#' to the changes found in the data frame(s) `new_df`. When `overwrite=TRUE`, these changes
+#' are written to disk.
+#'
+#' `new_df` should be a data frame returned by `rswat_open`, or a list of them.
+#'
+#' Set `fast=TRUE` in combination with `overwrite=TRUE` to omit the summary tibble output.
+#'
+#' @param new_df data frame or list, the SWAT+ table(s) to write
+#' @param overwrite logical, by default FALSE. Set to TRUE to write changes to disk
+#' @param quiet logical, suppresses console messages
+#' @param .db rswat reference object, for internal use
+
+#' @return a tibble listing changes to make in the affected SWAT+ files
+#' @export
+rswat_write = function(new_df, overwrite=FALSE, quiet=FALSE, .db=.rswat_db)
+{
+  modify_tense = ifelse(overwrite, 'modified', 'to modify')
+
+  # handle list input with recursive call
+  if( !is.data.frame(new_df) )
+  {
+    if( !is.list(new_df) ) stop('first argument must be a data frame or list of them')
+    write_result = lapply(new_df, \(df_i) rswat_write(df_i, overwrite=overwrite, quiet=TRUE))
+    df_changes = do.call(rbind, write_result) |> dplyr::arrange(file, field_num)
+    is_changed = nrow(df_changes) > 0
+    if(!quiet)
+    {
+      n_file = dplyr::n_distinct(df_changes[['file']])
+      msg_change = 'no changes to write'
+      if(is_changed) paste(nrow(df_changes), 'field(s)', modify_tense, 'in', n_file, 'file(s)') |>
+        message()
+    }
+
+    # re-load files if requested before returning modified field info
+    if(is_changed & overwrite) {
+
+      fn_reload = df_changes[['file']] |> unique()
+      if( !quiet ) message( paste('reloading', length(fn_reload), 'files'))
+      rswat_open(fn_reload, quiet=TRUE, output=FALSE)
+    }
+
+    return( dplyr::tibble(df_changes) )
+  }
+
+  # check for and copy two required attributes
+  fn = attr(new_df, 'rswat_fname')
+  table_num = attr(new_df, 'rswat_table_num')
+  if( length(c(fn, table_num)) < 2L ) stop('input new_df missing required rswat attributes')
+
+  # copy destination file info
+  swat_dir = .db$get_swat_dir()
+  fn = attr(new_df, 'rswat_fname')
+  table_num = attr(new_df, 'rswat_table_num')
+  fn_info = .db$get_cio_df(f=fn)
+
+  # stop when new_df is an output table
+  err_output = 'rswat cannot write to output files'
+  if( fn_info[['type']] == 'output' ) stop(err_output)
+
+  # formatting and error checking
+  new_df = rswat_prewrite(new_df, .db=.db)
+
+  # by default assume the file will be changed and render table as line-by-line plain text
+  is_changed = TRUE
+  txt_replace = data.table::fwrite(new_df, sep=' ', eol='\n', quote=FALSE) |> utils::capture.output()
+
+  # fix any double-escaped backslashes
+  txt_replace = gsub('\\\\', '\\', txt_replace, fixed=TRUE)
+
+  # copy the existing table data and lines info data frame for this file
+  txt_old = .db[['txt']][[fn]]
+  line_df_old = .db$get_line_df(f=fn, check_dir=FALSE)
+
+  # find the line numbers corresponding to the replacement
+  is_replaced = line_df_old[['table']] %in% table_num
+  ln_start = min(line_df_old[['line_num']][is_replaced], na.rm=TRUE)
+  ln_end = max(line_df_old[['line_num']][is_replaced], na.rm=TRUE)
+  ln_replaced = seq(ln_start, ln_end)
+
+  # drop data frame headers when they are not present in the file
+  has_headers = any(line_df_old[['header']][is_replaced])
+  if( !has_headers ) txt_replace = txt_replace[-1L]
+
+  # hack to deal with 'weather-wgn.cli' case
+  if( ( fn == 'weather-wgn.cli' ) & ( table_num == max(line_df_old[['table']]) ) )
+  {
+    # these table rows are spread out over the file, so we splice new lines with old
+    txt_to_change = txt_replace
+    txt_replace = txt_old[ln_table]
+    txt_replace[ln_replaced - ln_start + 1] = txt_to_change
+  }
+
+  # build the new line-by-line strings
+  n_line_old = length(txt_old)
+  txt_pre = txt_old[seq(n_line_old) < ln_start]
+  txt_post = txt_old[seq(n_line_old) > ln_end]
+  txt_write = c(txt_pre, txt_replace, txt_post)
+
+  # parse the result with rswat, extract changes, tidy up clutter and show existing vs replacement
+  nm_match = c('line_num', 'field_num')
+  changes_df = txt_write |>
+    rswat_scan_txt(f=fn, type='config') |>
+    rswat_ftable_txt() |>
+    dplyr::anti_join(line_df_old, by=c('string', nm_match)) |>
+    dplyr::mutate('replacement'=string) |>
+    dplyr::select(all_of(c('replacement', nm_match))) |>
+    dplyr::right_join(line_df_old, by=nm_match) |>
+    dplyr::filter(!is.na(replacement)) |>
+    dplyr::rename('value' = 'string') |>
+    dplyr::select('file', 'name', 'table', 'line_num', 'field_num', 'value', 'replacement')
+
+  # prepare console messages, set flag to indicate pending changes
+  msg_change = paste(nrow(changes_df), 'field(s)', modify_tense, 'in', fn)
+  is_changed = nrow(changes_df) > 0
+  if(!is_changed) message('no changes to write')
+  if( !quiet ) message(msg_change)
+
+  # write the changes to disk in overwrite mode
+  if( overwrite & is_changed )
+  {
+    # path to overwrite
+    path_write = file.path(swat_dir, fn)
+    if( !quiet ) message( paste('writing changes to', path_write, '\n') )
+
+    # write the file and reload it
+    writeLines(txt_write, path_write)
+    rswat_open(fn, quiet=quiet, output=FALSE, .db=.db)
+  }
+
+  if(quiet) return(invisible(dplyr::tibble(changes_df)))
+  return(dplyr::tibble(changes_df))
+}
+
+#' Prepare a data frame for writing to a SWAT+ file
+#'
+#'an existing SWAT+ parameter table with a new, possibly modified version,
+#'
+#' Generate a formatted version of the input data frame, ready to be printed to a
+#' file. For internal use by `rswat_write`.
+#'
+#' The function replaces missing columns, drops unnecessary ones, coerces mismatched
+#' classes, and converts all numeric columns to character with the same precision level
+#' as found in the file. Most related warnings and messages can be disabled with
+#' `quiet=TRUE`.
+#'
+#' Logical columns are converted to character, as 'y'/'n'.
+#'
+#' @param new_df data frame, the new SWAT+ parameter table
+#' @param quiet logical, whether to warn of possible problems with input
+#' @param .db rswat reference object, for internal use
+#'
+#' @return data frame, a modified version of `new_df` ready to print
+#' @export
+rswat_prewrite = function(new_df, quiet=FALSE, .db=.rswat_db)
+{
+  # check for and copy two required attributes
+  swat_dir = attr(new_df, 'rswat_path')
+  fn = attr(new_df, 'rswat_fname')
+  table_num = attr(new_df, 'rswat_table_num')
+  if( length(c(fn, table_num)) < 2L ) stop('input new_df missing required rswat attributes')
+
+  # get data frame of (old) parameter data on disk
+  .db$open_config_file(fn, output=FALSE)
+  old_df = .db[['stor_df']][[fn]][[table_num]]
+  if( is.null(old_df) ) stop('file creation mode not yet implemented')
+
+  # warn if changing the number of rows
+  nrow_change = nrow(old_df) != nrow(new_df)
+  msg_change = paste('input has', nrow(new_df), 'row(s). Existing table has', nrow(old_df))
+  if( !quiet & nrow_change ) warning(msg_change)
+
+  # warn of unrecognized columns and remove them
+  new_nm = names(new_df)
+  old_nm = names(old_df)
+  is_known = new_nm %in% old_nm
+  nm_extra = paste(names(new_df)[!is_known], collapse=', ')
+  if( any(!is_known) & !quiet ) warning( paste('ignoring unrecognized column(s):', nm_extra) )
+  new_df = new_df[is_known]
+
+  # deal with missing columns
+  is_missing = !(old_nm %in% new_nm)
+  if( any(is_missing) ) {
+
+    # if the number of rows is changing we require all columns to be supplied by the user
+    err_missing = paste('new_df should have columns', paste(old_nm[is_missing], collapse=', '))
+    if(nrow_change) stop(err_missing)
+
+    # otherwise we just use the existing ones in the file
+    new_df = rswat_order_columns(cbind(new_df, old_df), old_nm)
+  }
+
+  # drop the any units attributes numeric columns in new data frame
+  has_units = sapply(new_df, \(x) 'units' %in% class(x))
+  if( any(has_units) ) {
+
+    msg_units = paste('dropping units from column(s):', paste(collapse = ', '))
+    if( !quiet ) warning( msg_units )
+    new_df[has_units] = apply(new_df[has_units], 2, as.numeric)
+  }
+
+  # coerce columns to the proper class
+  new_class = sapply(new_df, \(x) head(class(x), 1L))
+  old_class = sapply(old_df, \(x) head(class(x), 1L))
+  is_coerced = new_class != old_class
+  if( any(is_coerced) )
+  {
+    expected_class = paste0('(to ', old_class[is_coerced], ')')
+    info_coerce_nm = Map(\(nm, cl) paste(nm, cl), old_nm[is_coerced], expected_class)
+    warn_coerce = paste0('coercing column(s) ', paste(info_coerce_nm, collapse=', '))
+    if( !quiet ) warning(warn_coerce)
+    new_df[is_coerced] = Map(\(v, cl) as(v, cl), new_df[is_coerced], old_class[is_coerced])
+  }
+
+  # format numeric as character with specified precision level
+  is_numeric = old_class == 'numeric'
+  if( any(is_numeric) )
+  {
+    # set precision and assign default when unknown
+    prec_lu = .db$get_line_df(f=fn) |>
+      dplyr::filter(header) |>
+      dplyr::filter(table==table_num) |>
+      dplyr::filter(class=='numeric') |>
+      dplyr::mutate(n_prec=replace(n_prec, is.na(n_prec), .rswat_gv_precision('n_small'))) |>
+      dplyr::select(name, n_prec)
+
+    # make sure we are matching name to precision in same order as new_df
+    n_prec = prec_lu[['n_prec']][ match(names(new_df)[is_numeric], prec_lu[['name']]) ]
+
+    # overwrite numeric columns with character, replace NAs with spaces
+    new_df[is_numeric] = Map(\(v, n) {
+
+      char_out = format(v, digits=.rswat_gv_precision('digits'), nsmall=n)
+      replace(char_out, is.na(char_out), '  ')
+
+    }, v=new_df[is_numeric], n=n_prec) |> as.data.frame()
+  }
+
+  # convert logical columns to 'y', 'n'
+  is_logical = old_class == 'logical'
+  if( any(is_logical) ) new_df[is_logical] = new_df[is_logical] |>
+    sapply(\(x) c('n', 'y')[ 1 + as.integer(x) ] )
+
+  # replace any remaining NAs with two spaces
+  is_na = sapply(new_df, anyNA)
+  new_df[is_na] = new_df[is_na] |> replace(is.na(new_df[is_na]), '  ')
+
+  # return the pre-processed data frame with attributes copied back
+  attr(new_df, 'rswat_path') = swat_dir
+  attr(new_df, 'rswat_fname') = fn
+  attr(new_df, 'rswat_table_num') = table_num
+  return(new_df)
+}
+
+
+
+
 #' Save a copy of a SWAT+ project, or a subset of its files
 #'
 #' Makes a copy of some or all of the contents of the currently loaded SWAT+ project
@@ -172,30 +432,47 @@ rswat_backup = function(dest = NULL,
 #' @return character vector, the path(s) to the file(s) written
 #' @export
 rswat_restore = function(backup = NULL,
-                         dest = .db$get_swat_dir(),
+                         dest = NULL,
                          overwrite = FALSE,
                          quiet = FALSE,
                          .db = .rswat_db) {
 
-
   # helper for below, lists contents of a backup directory or zip (p=path, g=group)
   open_backup = function(p, g=NULL) {
 
+    # set group based on file name
     if( is.null(g) ) g =  c('dir', 'zip')[ 1L + as.integer(endsWith(p, '.zip')) ]
     msg_fail = paste('there was a problem with the path', p)
     if( is.na(g) ) stop(msg_fail)
     if( g == 'dir' ) return( list.files(p) )
-    if( g == 'zip' ) return( unzip(p, list=TRUE)[['Name']] )
+    if( g == 'zip' ) {
+
+      # ignore paths and directories in zip
+      zip_paths = utils::unzip(p, list=TRUE)[['Name']]
+      return( basename(zip_paths[!endsWith(zip_paths, '/')]) )
+    }
+
     stop(msg_fail)
   }
 
+  # set default destination to currently loaded SWAT+ project
+  if( is.null(dest) ) dest = .db$get_swat_dir()
+  if( is.na(dest) ) stop('SWAT+ directory not assigned. Set it with rswat(...) or else provide dest')
+
   # normalize and validate destination path
-  dest = dest |> normalizePath(winslash='/')
+  dest = dest |> normalizePath(winslash='/', mustWork=FALSE)
+  if( !file.exists(dest) ) {
+
+    # create missing directory in overwrite mode
+    if( !overwrite ) stop(paste('directory', dest, 'not found. Set overwrite=TRUE to create it'))
+    if( !quiet ) message( paste('creating directory', dest) )
+    dir.create(dest, recursive=TRUE)
+  }
 
   # get SWAT+ file info on dest as data frame
   existing_files = rswat_scan_dir(dest, f=list.files(dest))
 
-  # if backup path is not given, return a tibble listing backups in current directory
+  # if backup path is not given, return a tibble listing backups in currently loaded project folder
   if( is.null(backup) ) {
 
     # list files in each backup
@@ -249,10 +526,10 @@ rswat_restore = function(backup = NULL,
     dplyr::mutate(add = TRUE) |>
     dplyr::mutate(overwrite = FALSE)
 
-  # merge the two lists and remove clutter
+  # merge the two lists, remove clutter
   restore_summary = rbind(existing_files, new_files) |>
     dplyr::filter(overwrite|add) |>
-    dplyr::select(c('file', 'type', 'overwrite', 'add')) |>
+    dplyr::select(c('file', 'overwrite', 'add')) |>
     dplyr::mutate(completed = FALSE)
 
   # count files being changed
@@ -263,7 +540,7 @@ rswat_restore = function(backup = NULL,
     # build and print a message about files to be changed
     msg_over = paste0('overwrite ', n_over, ' file(s)', ifelse(n_add > 0, ' and ', ''))
     msg_add = paste0('add ', n_add, ifelse(n_over > 0, '', ' files(s)'))
-    paste0('This will ', ifelse(n_over > 0, msg_over, ''), ifelse(n_add > 0, mgs_add, '')) |>
+    paste0('This will ', ifelse(n_over > 0, msg_over, ''), ifelse(n_add > 0, msg_add, '')) |>
       paste0(' in ', dest) |>
       paste0('\nSet overwrite=TRUE to write changes to disk') |>
       message()
@@ -299,5 +576,5 @@ rswat_restore = function(backup = NULL,
     restore_summary = restore_summary |> dplyr::rename('overwritten'='overwrite', 'added'='add')
   }
 
-  return(restore_summary)
+  return(dplyr::tibble(restore_summary))
 }

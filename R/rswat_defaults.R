@@ -1,6 +1,9 @@
 # defaults for rswat functions
 
-# TODO add backup detector
+# default number of digits to print for numeric data
+.rswat_gv_precision = function(what) switch(what,
+                                            'digits' = 12L, # total number of digits
+                                            'n_small' = 5L) # number allowed after the decimal point
 
 # keyword as shorthand for a useful group of file types to load
 .rswat_gv_include_lu = function(include) switch(include,
