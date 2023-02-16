@@ -4,12 +4,20 @@
 \alias{rswat_write}
 \title{Write parameters to SWAT+ config file(s)}
 \usage{
-rswat_write(new_df, overwrite = FALSE, quiet = FALSE, .db = .rswat_db)
+rswat_write(
+  new_df,
+  overwrite = FALSE,
+  fast = FALSE,
+  quiet = FALSE,
+  .db = .rswat_db
+)
 }
 \arguments{
 \item{new_df}{data frame or list, the SWAT+ table(s) to write}
 
 \item{overwrite}{logical, by default FALSE. Set to TRUE to write changes to disk}
+
+\item{fast}{logical, enables fixed delimiters for faster writing}
 
 \item{quiet}{logical, suppresses console messages}
 
@@ -26,5 +34,7 @@ are written to disk.
 \details{
 \code{new_df} should be a data frame returned by \code{rswat_open}, or a list of them.
 
-Set \code{fast=TRUE} in combination with \code{overwrite=TRUE} to omit the summary tibble output.
+Set \code{fast=TRUE} in combination with \code{overwrite=TRUE} to omit the summary tibble output
+and render tables using \code{data.table::fwrite}. This is much faster with large files, but
+results in less readable configuration files (columns are not aligned).
 }

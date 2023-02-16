@@ -11,6 +11,9 @@ rswat_exec(quiet = FALSE, .db = .rswat_db)
 
 \item{.db}{rswat reference object, for internal use}
 }
+\value{
+a tibble of output files created
+}
 \description{
 Makes a system call to run the SWAT+ executable in the currently assigned SWAT+
 project directory (see \code{?rswat}). This runs the simulation specified parameterized

@@ -3,7 +3,9 @@
 # default number of digits to print for numeric data
 .rswat_gv_precision = function(what) switch(what,
                                             'digits' = 12L, # total number of digits
-                                            'n_small' = 5L) # number allowed after the decimal point
+                                            'n_small' = 5L, # digits allowed after the decimal point
+                                            'n_line' = 1e4, # maximum character width for a line
+                                            'n_all' = 1e9 ) # maximum character width for a file
 
 # keyword as shorthand for a useful group of file types to load
 .rswat_gv_include_lu = function(include) switch(include,

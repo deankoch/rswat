@@ -7,16 +7,19 @@
 #'
 #' `new_df` should be a data frame returned by `rswat_open`, or a list of them.
 #'
-#' Set `fast=TRUE` in combination with `overwrite=TRUE` to omit the summary tibble output.
+#' Set `fast=TRUE` in combination with `overwrite=TRUE` to omit the summary tibble output
+#' and render tables using `data.table::fwrite`. This is much faster with large files, but
+#' results in less readable configuration files (columns are not aligned).
 #'
 #' @param new_df data frame or list, the SWAT+ table(s) to write
 #' @param overwrite logical, by default FALSE. Set to TRUE to write changes to disk
+#' @param fast logical, enables fixed delimiters for faster writing
 #' @param quiet logical, suppresses console messages
 #' @param .db rswat reference object, for internal use
 
 #' @return a tibble listing changes to make in the affected SWAT+ files
 #' @export
-rswat_write = function(new_df, overwrite=FALSE, quiet=FALSE, .db=.rswat_db)
+rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rswat_db)
 {
   modify_tense = ifelse(overwrite, 'modified', 'to modify')
 
@@ -64,12 +67,24 @@ rswat_write = function(new_df, overwrite=FALSE, quiet=FALSE, .db=.rswat_db)
   # formatting and error checking
   new_df = rswat_prewrite(new_df, .db=.db)
 
-  # by default assume the file will be changed and render table as line-by-line plain text
+  # by default assume the file will be changed
   is_changed = TRUE
-  txt_replace = data.table::fwrite(new_df, sep=' ', eol='\n', quote=FALSE) |> utils::capture.output()
+  txt_replace = if(fast) {
 
-  # fix any double-escaped backslashes
-  txt_replace = gsub('\\\\', '\\', txt_replace, fixed=TRUE)
+    # render table as line-by-line plain text (fast method)
+    data.table::fwrite(new_df, sep=' ', eol='\n', quote=FALSE) |> utils::capture.output()
+
+  } else {
+
+    # render using base print for readable spacing (slow method)
+    txt_replace = print.data.frame(new_df,
+                                   row.names=FALSE,
+                                   width=.rswat_gv_precision('n_line'),
+                                   max=.rswat_gv_precision('n_all')) |> utils::capture.output()
+
+    # debugging: fix double-escaped backslashes
+    txt_replace = gsub('\\\\', '\\', txt_replace, fixed=TRUE)
+  }
 
   # copy the existing table data and lines info data frame for this file
   txt_old = .db[['txt']][[fn]]
@@ -100,24 +115,28 @@ rswat_write = function(new_df, overwrite=FALSE, quiet=FALSE, .db=.rswat_db)
   txt_post = txt_old[seq(n_line_old) > ln_end]
   txt_write = c(txt_pre, txt_replace, txt_post)
 
-  # parse the result with rswat, extract changes, tidy up clutter and show existing vs replacement
-  nm_match = c('line_num', 'field_num')
-  changes_df = txt_write |>
-    rswat_scan_txt(f=fn, type='config') |>
-    rswat_ftable_txt() |>
-    dplyr::anti_join(line_df_old, by=c('string', nm_match)) |>
-    dplyr::mutate('replacement'=string) |>
-    dplyr::select(all_of(c('replacement', nm_match))) |>
-    dplyr::right_join(line_df_old, by=nm_match) |>
-    dplyr::filter(!is.na(replacement)) |>
-    dplyr::rename('value' = 'string') |>
-    dplyr::select('file', 'name', 'table', 'line_num', 'field_num', 'value', 'replacement')
+  # summary skipped in fast mode
+  if(!fast)
+  {
+    # parse the result with rswat, extract changes, tidy up clutter and show existing vs replacement
+    nm_match = c('line_num', 'field_num')
+    changes_df = txt_write |>
+      rswat_scan_txt(f=fn, type='config') |>
+      rswat_ftable_txt() |>
+      dplyr::anti_join(line_df_old, by=c('string', nm_match)) |>
+      dplyr::mutate('replacement'=string) |>
+      dplyr::select(all_of(c('replacement', nm_match))) |>
+      dplyr::right_join(line_df_old, by=nm_match) |>
+      dplyr::filter(!is.na(replacement)) |>
+      dplyr::rename('value' = 'string') |>
+      dplyr::select('file', 'name', 'table', 'line_num', 'field_num', 'value', 'replacement')
 
-  # prepare console messages, set flag to indicate pending changes
-  msg_change = paste(nrow(changes_df), 'field(s)', modify_tense, 'in', fn)
-  is_changed = nrow(changes_df) > 0
-  if(!is_changed) message('no changes to write')
-  if( !quiet ) message(msg_change)
+    # prepare console messages, set flag to indicate pending changes
+    msg_change = paste(nrow(changes_df), 'field(s)', modify_tense, 'in', fn)
+    is_changed = nrow(changes_df) > 0
+    if(!is_changed) message('no changes to write')
+    if( !quiet ) message(msg_change)
+  }
 
   # write the changes to disk in overwrite mode
   if( overwrite & is_changed )
@@ -131,6 +150,7 @@ rswat_write = function(new_df, overwrite=FALSE, quiet=FALSE, .db=.rswat_db)
     rswat_open(fn, quiet=quiet, output=FALSE, .db=.db)
   }
 
+  if(fast) return(invisible(dplyr::tibble()))
   if(quiet) return(invisible(dplyr::tibble(changes_df)))
   return(dplyr::tibble(changes_df))
 }
