@@ -210,7 +210,7 @@ rswat_db$methods( list(
     new_hash = rlang::hash_file(read_path)
     old_hash = cio_df[['hash_load']][idx_cio]
     if( length(old_hash) == 0L ) old_hash = NA
-    is_new = ifelse(is.na(old_hash), TRUE, new_hash==old_hash)
+    is_new = ifelse(is.na(old_hash), TRUE, new_hash!=old_hash)
 
     # skip loading if cached data available and file hash has not changed
     if( !(f %in% names(txt)) | is_new )

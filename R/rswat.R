@@ -74,8 +74,7 @@ rswat = function(swat_dir = NULL,
   # read file.cio to add type and group labels
   rswat_open(f='file.cio', refresh=FALSE, quiet=TRUE, .db=.db)
 
-  # TODO: check this out more carefully
-  # refresh again (why is this necessary?)
+  # refresh again to catch files mentioned in file.cio but missing on disk
   .db$refresh_cio_df(quiet=FALSE)
 
   # load other files on request
@@ -179,11 +178,11 @@ rswat_open = function(f = NULL,
 
   } else {
 
-    # print suggestions if the file is not known to rswat
+    # the file is not known to rswat
     if(!is_known) {
 
-      if(!quiet) rswat_find(f=f)
-      return(list())
+      if(!quiet) message( paste('file', f, 'not found in ', .db$get_swat_dir()) )
+      return(invisible())
     }
 
     # open a single file
@@ -197,7 +196,7 @@ rswat_open = function(f = NULL,
   if(!quiet & any(is_failed)) message(paste0('rswat failed to load ',
                                              paste(f[is_failed], collapse=', '),
                                              '\n View the first error message with ',
-                                             'rswat_files(',
+                                             '.rswat_db$get_cio_df(f=',
                                              '"', f[which(is_failed)[1L]], '"',
                                              ', what=c("file", "error", "msg"))'))
 
