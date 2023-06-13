@@ -24,6 +24,5 @@ rswat_open(
 a data frame or a list of them, the parameter tables in the config file
 }
 \description{
-Returns data frame, or a list of them, corresponding to the data values
-found in the SWAT+ file.
+Returns data frame corresponding to the data values in the SWAT+ file (or a list of them).
 }

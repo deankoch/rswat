@@ -1,4 +1,3 @@
-
 #' Open a SWAT+ project directory
 #'
 #' Scans a SWAT+ project directory for configuration files and optionally loads them. This
@@ -102,8 +101,7 @@ rswat = function(swat_dir = NULL,
 
 #' Open a SWAT+ project file with rswat
 #'
-#' Returns data frame, or a list of them, corresponding to the data values
-#' found in the SWAT+ file.
+#' Returns data frame corresponding to the data values in the SWAT+ file (or a list of them).
 #'
 #' @param f character vector, the file name(s) to select
 #' @param .db rswat_db object, for internal use

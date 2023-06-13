@@ -6,18 +6,18 @@
 \title{A reference class for SWAT+ projects}
 \description{
 An "rswat_db" object is a reference class (R5) object that collects information
-and methods for a SWAT+ project, based on the configuration files found in the SWAT+
+and methods for a SWAT+ project based on the configuration files found in the SWAT+
 project directory \code{swat_dir}. Get a new instance of an "rswat_db" object by calling the
 \code{new()} method with \code{rs = rswat_db$new()}
 }
 \details{
 Project files (discovered in \code{swat_dir}) are listed in the \code{cio_df} field, a data frame
 with one row per file and various attributes to describe and categorize the files. Only
-files listed in this data frame can be loaded.
+files listed in this data frame can be loaded by \code{rswat}.
 
-When a file \code{f} is loaded, it is parsed as a list of data frames which are copied to
-\code{stor_df[[f]]}. Every table loaded in this way is also copied to a large data frame
-\code{line_df}, which has a row for each white-space delimited field (including headers),
+When the file with filename \code{f} is loaded, it is parsed as a list of data frames that are
+copied to \code{stor_df[[f]]}. Every table loaded in this way is also copied to a large data
+frame \code{line_df}, which has a row for each white-space delimited field (including headers),
 from all loaded files. A third copy of the data is stored in \code{txt[[f]]}, which caches
 the line-by-line text of the file as a vector of character strings.
 }
@@ -56,27 +56,28 @@ configuration files (to make \code{line_df}). For example,
 \section{.rswat_db}{
 
 When the \code{rswat} package is loaded, an rswat_db class object called \code{.rswat_db} is defined
-to store all data related to the currently loaded project. Non-developers should avoid
-interacting directly with \code{.rswat_db} (ie don't call its methods or set its fields) and
-instead use the provided helper functions.
+in the user's global environment. This stores all data related to the currently loaded
+project. Non-developers should avoid interacting directly with \code{.rswat_db} (ie don't call
+its methods or set its fields) - instead use the provided helper functions.
 }
 
 \section{Reference class R5}{
 
 R5 objects behave like traditional OOP classes you would find in C++ or Python, and
-this is quite different from the value semantics used with other R objects.
+this is quite different from the value semantics that normally apply when interacting
+with objects in R.
 
 For example, R5 methods come bundled with the object itself (encapsulation), and they
-are accessed using the \code{$} operator, the same way that we access list entries.
+are accessed using the \code{$} operator, the same way that we access entries in ordinary R lists.
 
 R5 objects also have reference semantics, meaning that if you "copy" \code{rs} by assignment
 with \code{x = rs}, then modify \code{x}, you are actually modifying \code{rs}. This is helpful for
 speeding up loading and parsing times (less data copied as function arguments), and it
-makes it easier to maintain a database about SWAT+ parameters that is visible to
-all \code{rswat} functions.
+makes it easier to maintain a database about SWAT+ parameters that is visible to and shared
+by all \code{rswat} functions.
 
-In the code for methods, a special assignment operator (see \verb{?<<-}) is used
-extensively to write to fields of the parent rswat_db object. When we need to reference
+Note that in the code for rswat_db methods, a special assignment operator (\verb{?<<-}) is
+used extensively to write to fields of the parent rswat_db object. When we need to reference
 this object explicitly (like in arguments to external function calls), we use \code{.self}.
 
 In other functions (those which aren't rswat_db methods) we reference the rswat_db object
