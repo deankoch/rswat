@@ -9,7 +9,7 @@
 #'
 #' Set `fast=TRUE` in combination with `overwrite=TRUE` to omit the summary tibble output
 #' and render tables using `data.table::fwrite`. This is much faster with large files, but
-#' results in less readable configuration files (columns are not aligned).
+#' results in configuration files that are less readable for humans (columns are not aligned).
 #'
 #' @param new_df data frame or list, the SWAT+ table(s) to write
 #' @param overwrite logical, by default FALSE. Set to TRUE to write changes to disk
@@ -109,6 +109,13 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
     txt_replace[ln_replaced - ln_start + 1] = txt_to_change
   }
 
+  # hack to deal with weather inputs case (where only config rows are hashed/cached)
+  if( fn_info[['type']] == 'weather' ) {
+
+    txt_old = readLines(fn_info[['path']])
+    fast = TRUE
+  }
+
   # build the new line-by-line strings
   n_line_old = length(txt_old)
   txt_pre = txt_old[seq(n_line_old) < ln_start]
@@ -157,7 +164,7 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
 
 #' Prepare a data frame for writing to a SWAT+ file
 #'
-#'an existing SWAT+ parameter table with a new, possibly modified version,
+#' Replace an existing SWAT+ parameter table with a new, possibly modified version,
 #'
 #' Generate a formatted version of the input data frame, ready to be printed to a
 #' file. For internal use by `rswat_write`.
@@ -250,11 +257,21 @@ rswat_prewrite = function(new_df, quiet=FALSE, .db=.rswat_db)
     # make sure we are matching name to precision in same order as new_df
     n_prec = prec_lu[['n_prec']][ match(names(new_df)[is_numeric], prec_lu[['name']]) ]
 
-    # overwrite numeric columns with character, replace NAs with spaces
+    # replace NAs with this placeholder
+    na_placeholder = '  '
+
+    # deal with weather input files which have no headers and use a different placeholder
+    if( any(is.na(n_prec)) ) {
+
+      n_prec = rep(.rswat_gv_precision('n_small'), sum(is_numeric))
+      na_placeholder = .rswat_gv_weather_NA_val()
+    }
+
+    # overwrite numeric columns with character
     new_df[is_numeric] = Map(\(v, n) {
 
       char_out = format(v, digits=.rswat_gv_precision('digits'), nsmall=n)
-      replace(char_out, is.na(char_out), '  ')
+      replace(char_out, is.na(v) | is.na(char_out), na_placeholder)
 
     }, v=new_df[is_numeric], n=n_prec) |> as.data.frame()
   }

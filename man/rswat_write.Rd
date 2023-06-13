@@ -36,5 +36,5 @@ are written to disk.
 
 Set \code{fast=TRUE} in combination with \code{overwrite=TRUE} to omit the summary tibble output
 and render tables using \code{data.table::fwrite}. This is much faster with large files, but
-results in less readable configuration files (columns are not aligned).
+results in configuration files that are less readable for humans (columns are not aligned).
 }

@@ -17,7 +17,7 @@ rswat_prewrite(new_df, quiet = FALSE, .db = .rswat_db)
 data frame, a modified version of \code{new_df} ready to print
 }
 \description{
-an existing SWAT+ parameter table with a new, possibly modified version,
+Replace an existing SWAT+ parameter table with a new, possibly modified version,
 }
 \details{
 Generate a formatted version of the input data frame, ready to be printed to a

@@ -231,12 +231,18 @@ rswat_weather_report = function(lazy = TRUE,
     msg_v_partial = paste(v_nm[stations_loaded][!is_full], collapse=', ')
 
     # message about these variables
-    msg_v_full = paste(v_nm[stations_loaded][is_full], collapse=', ')
+    is_displayed = stations_loaded[is_full]
+    msg_v_full = paste(v_nm[is_displayed], collapse=', ')
     msg_observed = msg_sub_prefix['sta'] |>
       paste(msg_period) |>
-      paste('for', msg_v_full) |>
+      paste(msg_v_full) |>
       paste(ifelse(any(!is_full), paste0('(', msg_v_partial, ')'), ''))
 
+    # add extra rows for variables not yet fully loaded
+    msg_unobserved = gsub('.', ' ', msg_sub_prefix['sta']) |>
+      paste('[ ? to ? ]') |>
+      paste(paste(v_nm[!is_displayed], collapse=', '))
+    msg_observed = c(msg_observed, msg_unobserved)
   }
 
   # optionally print then return character string invisibly
