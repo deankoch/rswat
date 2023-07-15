@@ -1,3 +1,6 @@
 ^rswat\.Rproj$
 ^\.Rproj\.user$
-^data-raw$
+^demo$
+^example_projects$
+^R_backup$
+
