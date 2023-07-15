@@ -1,5 +1,5 @@
 ## Dean Koch, 2022
-## prepares the internal `.rswat_io_pdf` dataset
+## prepares the `rswat_io_pdf` dataset
 
 library(here)
 library(pdftools)
@@ -11,10 +11,10 @@ source(here('data-raw/rswat_pdf_helpers.R'))
 pdf_path = 'D:/UYRW_data/development/inputs_swatplus_rev60_5.pdf'
 
 # run the workflow
-.rswat_io_pdf = rswat_open_io(pdf_path)
+rswat_io_pdf = rswat_open_io(pdf_path)
 
-# .rswat_io_pdf is a data frame with variable definition scraped from PDF
-str(.rswat_io_pdf)
+# rswat_io_pdf is a data frame with variable definition scraped from PDF
+str(rswat_io_pdf)
 
-# update the package sysdata.rda
-usethis::use_data(.rswat_io_pdf, internal=TRUE, overwrite=TRUE)
+# update the package data
+usethis::use_data(rswat_io_pdf, internal=TRUE, overwrite=TRUE)
