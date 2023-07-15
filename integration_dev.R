@@ -7,14 +7,16 @@ library(devtools)
 # TODO: add a check to rswat() to see if docs is loaded yet and if not, load it
 
 
-#load_all()
-library(rswat)
+load_all()
+#library(rswat)
 
-# x ='D:/rswat_data/yellowstone/split/lamar_river/qswat/lamar_river/Scenarios/Default/TxtInOut'
-# rswat(x, include='basic')
-# rswat_open('pcp1.pcp')
-
-
+# # simple example to test weather write with new rows
+d ='D:/rswat_data/yellowstone/split/lamar_river/qswat/lamar_river/Scenarios/Default/TxtInOut'
+rswat(d, include='basic')
+y = rswat_open('pcp2.pcp')
+new_df = y[[2]] |> rbind(data.frame(year=2023L, jday=197L, pcp=100))
+new_df |> rswat_write(overwrite=F)
+new_df |> rswat_write(overwrite=T, quiet=TRUE)
 
 # TODO: check behavior of NWIS update calls on individual sub-catchments
 
@@ -28,7 +30,7 @@ sub_dir = sub_dirs[i]
 qswat_path = run_qswat(sub_dir)[['output']] |> readLines() |> jsonlite::fromJSON()
 swat_dir = qswat_path[['txt']]
 
-# find simulator path and select latest version in SWAT+ Editor assets
+# find simulator path and select latest version in SWAT+ Editor "assets" directory
 swat_exe = qswat_path[['simulator_dir']] |>
   list.files('^rev.+rel\\.exe$', recursive=TRUE, full.names=TRUE) |>
   sort() |> tail(1)
@@ -38,6 +40,17 @@ swat_dir |> rswat(swat_exe, include='basic')
 
 # fix the default print settings to show warm-up
 rswat_open('print.prt')[[1]] |> dplyr::mutate(nyskip=0L) |> rswat_write(overwrite=TRUE)
+
+
+
+
+# TODO: find the mapping of polygon IDs to subbasins
+# TODO: then copy weather data in a loop
+# TODO: run simulation and identify outlet object ID
+
+# TODO: select parameters, select bounds
+# TODO: model fitter - load gage data, set time
+
 
 # summary now shows the correct dates
 #rswat()
@@ -60,14 +73,6 @@ new_df |> rswat_write(overwrite=T, quiet=T)
 #
 rswat_dir() |> file.path('pcp1.pcp') |> readLines()
 # it works!
-
-
-# TODO: find the mapping of polygon IDs to subbasins
-# TODO: then copy weather data in a loop
-# TODO: run simulation and identify outlet object ID
-
-# TODO: select parameters, select bounds
-# TODO: model fitter - load gage data, set time
 
 
 

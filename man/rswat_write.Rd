@@ -32,9 +32,14 @@ to the changes found in the data frame(s) \code{new_df}. When \code{overwrite=TR
 are written to disk.
 }
 \details{
-\code{new_df} should be a data frame returned by \code{rswat_open}, or a list of them.
+\code{new_df} should be a data frame returned by \code{rswat_open}, or a list of them. Be aware of
+the attributes in these objects with names beginning with 'rswat_'. If some operation
+drops the attributes, \code{rswat_write} will not be able to locate the source file.
 
-Set \code{fast=TRUE} in combination with \code{overwrite=TRUE} to omit the summary tibble output
-and render tables using \code{data.table::fwrite}. This is much faster with large files, but
-results in configuration files that are less readable for humans (columns are not aligned).
+Set \code{fast=TRUE} to omit most of the summary tibble output and return only the names of the
+files to modify. If \code{overwrite=TRUE} and \code{fast=TRUE} the function also renders tables using
+\code{data.table::fwrite} (instead of \code{print.data.frame}). This is much faster with large files,
+but results in configuration files that are less readable to humans (columns are not aligned).
+
+\code{fast=TRUE} mode is mandatory for 'weather' type input data files ('pcp1.pcp' etc).
 }

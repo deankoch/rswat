@@ -5,11 +5,16 @@
 #' to the changes found in the data frame(s) `new_df`. When `overwrite=TRUE`, these changes
 #' are written to disk.
 #'
-#' `new_df` should be a data frame returned by `rswat_open`, or a list of them.
+#' `new_df` should be a data frame returned by `rswat_open`, or a list of them. Be aware of
+#' the attributes in these objects with names beginning with 'rswat_'. If some operation
+#' drops the attributes, `rswat_write` will not be able to locate the source file.
 #'
-#' Set `fast=TRUE` in combination with `overwrite=TRUE` to omit the summary tibble output
-#' and render tables using `data.table::fwrite`. This is much faster with large files, but
-#' results in configuration files that are less readable for humans (columns are not aligned).
+#' Set `fast=TRUE` to omit most of the summary tibble output and return only the names of the
+#' files to modify. If `overwrite=TRUE` and `fast=TRUE` the function also renders tables using
+#' `data.table::fwrite` (instead of `print.data.frame`). This is much faster with large files,
+#' but results in configuration files that are less readable to humans (columns are not aligned).
+#'
+#' `fast=TRUE` mode is mandatory for 'weather' type input data files ('pcp1.pcp' etc).
 #'
 #' @param new_df data frame or list, the SWAT+ table(s) to write
 #' @param overwrite logical, by default FALSE. Set to TRUE to write changes to disk
@@ -27,23 +32,37 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
   if( !is.data.frame(new_df) )
   {
     if( !is.list(new_df) ) stop('first argument must be a data frame or list of them')
-    write_result = lapply(new_df, \(df_i) rswat_write(df_i, overwrite=overwrite, quiet=TRUE))
-    df_changes = do.call(rbind, write_result) |>
-      dplyr::arrange( dplyr::across( dplyr::all_of(c('file', 'field_num')) ) )
+    write_result = lapply(new_df, \(df_i) rswat_write(df_i,
+                                                      overwrite = overwrite,
+                                                      fast = fast,
+                                                      quiet = TRUE,
+                                                      .db=.rswat_db))
+
+    # list of changes in the file
+    # df_changes = do.call(rbind, write_result) |>
+    #   dplyr::arrange( dplyr::across( dplyr::all_of(c('file', 'field_num')) ) )
+    df_changes = do.call(rbind, write_result) |> dplyr::arrange('file')
+
+    # print info about the pending changes
     is_changed = nrow(df_changes) > 0
-    if(!quiet)
-    {
+    if(is_changed) {
+
       n_file = dplyr::n_distinct(df_changes[['file']])
-      msg_change = 'no changes to write'
-      if(is_changed) paste(nrow(df_changes), 'field(s)', modify_tense, 'in', n_file, 'file(s)') |>
-        message()
-    }
+      fn_reload = df_changes[['file']] |> unique()
+      msg_change = paste(n_file, 'file(s)')
+
+      # in non-fast mode report on field(s) modified
+      msg_extra = paste(nrow(df_changes), 'field(s)', modify_tense)
+      if( !fast ) msg_change = msg_extra |> paste('in', msg_change)
+
+    } else { msg_change = 'no changes to write' }
+
+    if(!quiet) message(msg_change)
 
     # re-load files if requested before returning modified field info
     if(is_changed & overwrite) {
 
-      fn_reload = df_changes[['file']] |> unique()
-      if( !quiet ) message( paste('reloading', length(fn_reload), 'files'))
+      message( paste('reloading', length(fn_reload), 'files'))
       rswat_open(fn_reload, quiet=TRUE, output=FALSE)
     }
 
@@ -123,9 +142,9 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
   txt_post = txt_old[seq(n_line_old) > ln_end]
   txt_write = c(txt_pre, txt_replace, txt_post)
 
-  # summary skipped in fast mode
-  if(!fast)
-  {
+  # summary skipped in fast mode but report files to modify
+  if(fast) { changes_df = data.frame(file=fn) } else {
+
     # parse the result with rswat, extract changes, tidy up clutter and show existing vs replacement
     nm_match = c('line_num', 'field_num')
     changes_df = txt_write |>
@@ -137,7 +156,8 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
       dplyr::right_join(line_df_old, by=nm_match) |>
       dplyr::filter(!is.na(replacement)) |>
       dplyr::rename('value' = 'string') |>
-      dplyr::select('file', 'name', 'table', 'line_num', 'field_num', 'value', 'replacement')
+      dplyr::select('file', 'name', 'table', 'line_num', 'field_num', 'value', 'replacement') |>
+      dplyr::arrange('field_num')
 
     # prepare console messages, set flag to indicate pending changes
     msg_change = paste(nrow(changes_df), 'field(s)', modify_tense, 'in', fn)
@@ -158,7 +178,6 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
     rswat_open(fn, quiet=quiet, output=FALSE, .db=.db)
   }
 
-  if(fast) return(invisible(dplyr::tibble()))
   if(quiet) return(invisible(dplyr::tibble(changes_df)))
   return(dplyr::tibble(changes_df))
 }

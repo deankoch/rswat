@@ -11,9 +11,12 @@ An object of class \code{rswat_db} of length 1.
 .rswat_db
 }
 \description{
+Make sure that all R files appear in the 'include' tags
+above. This ensures the R files are collated in the right order.
+}
+\details{
 The code below defines an rswat_db reference class object to store data and information
 about the currently loaded SWAT+ project. The class, its methods, and any dependent
-functions must be defined first. Make sure that all R files appear in the 'include' tags
-above. This ensures the R files are collated in the right order.
+functions must be defined first, hence the collate.
 }
 \keyword{datasets}
