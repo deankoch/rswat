@@ -20,13 +20,13 @@ rswat(
 
 \item{exe_path}{character, path to the SWAT+ simulation executable (should have extension ".exe")}
 
+\item{include}{character vector, a set of file, group, or type names to include}
+
 \item{exclude}{character vector, regular expressions for groups/names to not load}
 
 \item{reset}{logical, indicates to re-initialize rswat (erases any loaded data)}
 
 \item{.db}{rswat_db object, for internal use}
-
-\item{load_all}{logical, indicating to load all configuration files except as specified in \code{exclude}}
 }
 \value{
 A data frame of information on the SWAT+ files in \code{swat_dir}
@@ -44,6 +44,9 @@ about them which can be accessed with functions like \code{rswat_files} or \code
 The function invisibly returns a data frame of information on the files in \code{swat_dir},
 printing its first few rows (by default, when \code{quiet=TRUE}).
 
-Files of type 'output', 'decision_table', 'gwflow' are not loaded by default because they
-can be large and slow to parse. Set \code{exclude=""} to load everything.
+Subsets to load can be be specified with \code{include} and \code{exclude}, as described in
+\code{?rswat_files}. Files of type 'output', 'decision_table', 'gwflow', 'weather', and
+'output', are not loaded by default because they can be large and slow to parse. Set
+\code{include='more'} to also load weather files. Set \code{include='all'} to load everything,
+or \code{include='basic'} to load only the 'climate' and 'simulation' groups.
 }

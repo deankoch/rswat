@@ -4,11 +4,17 @@ February 06, 2023
 
 This document introduces the `rswat` R package, showing off the important existing features and functionality. Maybe this can serve as a draft for a paper later on.
 
+
+## My TO-DO list
+
+- add flush option to refresh_cio to remove old files from list and report their absence
+
+
 ## Notes
 
 This package is for SWAT+ users but it is not affiliated with the SWAT+ development team. It is an independent project by an R user interested in SWAT+. Don't bother the SWAT+ developers with `rswat` questions, and vice-versa.
 
-`rswat` is designed for SWAT+ (read “swat-plus”), and not its predecessor “SWAT2012”. Both versions implement essentially the same model, and the name "SWAT" is often used interchangeably for both the model and (both of) the simulators. However the older simulator uses a different configuration file scheme that has not been tested with `rswat`. 
+`rswat` is designed for SWAT+ (read “swat-plus”), and not its predecessor “SWAT2012”. Both versions implement essentially the same model, and you may see the name "SWAT" used interchangeably for the model and both of the simulators. However the older simulator uses a different configuration file scheme that is not tested in `rswat`. 
 
 ## rswat Features
 
@@ -28,14 +34,14 @@ SWAT+ is a program for generating detailed accounts of water movement through a 
 
 ## Why rswat?
 
-Watersheds are sprawling, intricate systems, with many different components that interact with each other. As a result, there is a lot of quantitative information to manage and understand when working with SWAT+. `rswat` is designed to help users manage all these data, and to enable the automation of model configuration and prediction using reproducible R scripts.
+Watersheds are sprawling, intricate systems with many different components interacting with one other. SWAT+ mirrors this complexity with its many interacting configuration files and quantitative inputs. `rswat` is designed to help users manage this data, and to enable the automation of SWAT+ configuration, model fitting, and prediction, all using reproducible R scripts.
 
 
 ## SWAT+ sub-processes
 
 Most of the water entering a watershed arrives as precipitation, which drains along one of many paths through the landscape towards an exit point, such as on a creek or river. Building a detailed water budget is essentially a matter of monitoring how much water arrives over time (eg. with weather stations), and how much leaves (eg. with stream gauges), then deducing what has happened in between using principles from hydrology.
 
-This "in between" involves not just a stream network, but also a host of landscape features that play a significant role in storing and moving water, including snow pack, soils, aquifers, ponds and lakes. These components interact with each other, and with the surrounding environment, so an accurate model has to account for transfers between them, as well as losses from evaporation and evapo-transpiration, and leakage into deep aquifers
+This "in between" involves not just a stream network, but also a host of landscape features that play a significant role in storing and moving water, including snow pack, vegetation, soils, aquifers, ponds and lakes. These components interact with each other, and with the surrounding environment, so an accurate model has to account for transfers between them, as well as losses from evaporation and evapo-transpiration, and leakage into deep aquifers
 
 SWAT+ will simulate all of these sub-processes (and more), making the appropriate adjustments to the water budget so that downstream values remain accurate. However each adjustment requires some thoughtful configuration to reflect the unique properties of different watersheds.
 
@@ -79,11 +85,11 @@ exe_path = 'D:/rswat/swat_executable/rev60.5.4_64rel.exe'
 shell(exe_path, intern=TRUE)
 ```
 
-This prints version information, but (being in the wrong working directory) fails to locate the configuration files needed to run the simulation. In examples later on, we will use `swat_exec` to call the simulator the right way. 
+This prints version information but (being in the wrong working directory) it fails to locate the configuration files needed to run the simulation. In examples later on, we will use `swat_exec` to call the simulator the right way. 
 
 ## Dependencies
 
-We have tried to keep `rswat` light on dependencies. There is no reliance on SWAT+ Editor or QSWAT+, though we recommend them for your own use. The most important R dependencies are `data.table` (to load text files) and `dplyr` (to help with parsing). 
+We have tried to keep `rswat` light on dependencies. There is no reliance on SWAT+ Editor or QSWAT+, though we recommend them for your own use. The most important R dependencies are `data.table` (to load text files) and `dplyr` (for parsing). 
 
 ```{r deps, message=FALSE}
 library(data.table)
@@ -92,7 +98,8 @@ library(dplyr)
 
 # TEMPORARY: load development version of rswat
 library(devtools)
-document()
+load_all()
+#document()
 
 ```
 
@@ -101,6 +108,7 @@ document()
 Pass the directory path (usually named "TxtInOut") to `rswat` to assign your project of interest. By default this call loads some of the more important config files, and it produces a bunch of console output about its progress (hidden in this document for tidiness). 
 
 ```{r set project directory, results='hide', message=FALSE}
+load_all()
 rswat(swat_dir)
 ```
 
@@ -121,79 +129,161 @@ rswat()
 
 This reports the following:
 
-- **directory** the currently loaded project directory
 - **simulator** the executable to use for simulations
+- **directory** the currently loaded project directory
+- **file.cio** the number of configuration files detected and the number of categories
 - **climate** the number of weather stations, and the name of a file listing weather inputs
   - **wgn** which (if any) weather variables will be simulated
   - **sta** which (if any) weather variables will be loaded from input files
 - **time.sim** the time period over which the simulation will run, including burn-in time
 - **print.prt** the time period over which simulation outputs will be written to output files
   - the output files to be written and their file names (if any) 
-- **file.cio** the number of configuration files detected and the number of categories
 
-Let's unpack this information in reverse order:
+Let's unpack this information:
 
 #### file.cio
 
 The most important file in a SWAT+ project is named **file.cio**. It lists - or points to other files that list - every configuration file to be loaded by the simulator. It also groups important files into categories.
 
 
-#### Time periods
+#### time.sim
 
 Because most SWAT+ state variables are initialized with a guess, simulations tend to improve following a burn-in period. This is an initial period during which the model's internal state variables evolve to more realistic values, reflecting, among other things, normal seasonal trends and the echoes of past weather events. SWAT+ therefore provides two time period settings, one in **time.sim** - the period to simulate - and one in **print.prt** - the period to produce outputs, a subset of the simulation period.
+
+#### print.prt
   
 SWAT+ is written in Fortran, which is fast, but all of the input/output happens via plain text files, which can be large and slow to write. As a result you may want to disable unnecessary output files, particularly if your basin has many HRUs, or when simulating long periods. In this example we have set up the **print.prt** file to request only a single output file ("channel_sd.txt", daily values). The other outputs still exist in the simulation, but you won't see them because we have requested they not be printed. 
 
-#### Weather
+#### weather stations
 
 The **climate** entry reports on weather stations, **sta**, and generators, **wgn**. Ideally you should supply daily weather data to drive your simulation. SWAT+ accepts regional weather inputs at the level of the HRU through point locations called "weather stations" (they don't have to correspond to real stations). Each HRU is mapped to exactly one of these stations - the closest one - and each mapped station should have one or more accompanying weather records.
+  
+#### weather generators
   
 SWAT+ has a built-in system for generating missing weather data. This system gets activated automatically for any variable that is missing a weather input file. In our example "slr" is missing, which means SWAT+ will generate daily solar radiation values randomly (using monthly climatic means and variances).
 
 The creation of regionalized weather data is an interesting and tricky statistical problem. Readers may be interested in my other R package snapKrig for an interpolation tool based on Gaussian processes. We will come around to this topic later in a detailed example. 
 
-## Listing files
+## List files
 
-To browse files in your project directory by name and type, check out `?rswat_files`. When called without arguments, this returns a tibble describing all (recognized) files belonging to a SWAT+ project. This includes configuration files, *gwflow* and weather inputs, outputs, logs, and `rswat` backups.
+Browse files in your project directory with `rswat_files`. This returns a tibble summarizing the files found there, including all configuration files, *gwflow* and weather inputs, outputs, logs, and `rswat` backups.
 
 ```{r list all files and types, message=FALSE}
-rswat_files() |> pull('type') |> unique()
+rswat_files()
+rswat_files() |> dplyr::pull('type') |> unique()
 ```
 
+`rswat_files` can also summarize by type or group
+
+```{r backup included}
+rswat_files(level='group')
+rswat_files(level='type')
+```
+
+## Search
+
+`rswat` offers two search functions to help identify and track down parameters
+
+- `rswat_docs` searches the name/definition text in the official SWAT+ inputs documentation PDF
+- `rswat_find` searches parameter names in loaded files
+
+For example let’s look for information on the simulation start and end times. Begin by by searching for parameters named "start"
+
+```{r example find start}
+rswat_find('start')
+```
+
+This turns up a small set of relevant parameters where "start" forms a part of the  name, and (by default) pairs these results to definitions found in the SWAT+ inputs documentation PDF. That documentation can also be searched directly using `rswat_docs`. For example, display all definitions related to the file "time.sim" like this
+
+```{r example docs timesim}
+rswat_docs('time.sim')
+```
+
+This output shows page and line numbers in the PDF for each definition. `rswat_docs` can also be passed search strings for individual parameter names (similar to `rswat_find`), or for keywords in the definitions text (set `defs=TRUE`).
+
+For example users interested in the aquifer module might first try the following
+
+```{r example find aquifer, results='hide'}
+rswat_find('aquifer')
+rswat_docs('aquifer')
+```
+
+There are no SWAT+ parameters containing the exact string "aquifer". However there are a quite a few that mention the keyword "aquifer" in their definitions. 
+
+```{r example docs aquifer}
+rswat_docs('aquifer', defs=TRUE)
+```
+
+These definitions were copied automatically by a script that parses the PDF based on formatting, after rendering it as plain text. This works for the vast majority of definitions but there are still bugs to work out. An example of a parsing error can be seen in the output above, for the variable "aa_numint", where an example table was copied by accident.
+
+## Aliases
+
+Continuing the last example, let's count appearances of "aquifer" in definitions by file, and display the five top results.
+
+```{r example docs aquifer aqu}
+rswat_docs('aquifer', defs=TRUE) |> dplyr::select('file') |> table() |> sort() |> tail(5)
+```
+
+We can see that most of the action is in a file called "aquifer.aqu". Pass this file name to `rswat_find` for a summary
+
+```{r example find aquifer aqu}
+rswat_find('aquifer.aqu')
+```
+
+This output illustrates a common situation where the variable names in the PDF didn't exactly match the names in the SWAT+ configuration file. Most of these discrepancies seem to be either typos, abbreviations, or old names used in SWAT2012. `rswat` will attempt to match names to aliases in these cases, and the match confidence is reported on a three-star scale. 
+
+`rswat` is generally good at sorting this stuff out automatically, but it isn't perfect. Users should take the one and two star matches with a grain of salt and, if unsure, always check the source PDF in context (`rswat_docs` will point you to the relevant pages).
+
+## Fuzzy matching
+
+Both `rswat_find` and `rswat_docs` support fuzzy matching. If your initial search turns up no results you can request the closest `n` approximate matches by setting `fuzzy=n`. Here we search for a variable name in "aquifer.aqu" 
+
+```{r example docs misspell, results='hide'}
+rswat_docs('hl_no3n')
+```
+
+Since this name was abbreviated in the PDF (alias "hl_no3"), it doesn't turn up in the exact search. However, it is the first fuzzy match:
+
+```{r example docs misspell fuzz}
+rswat_docs('hl_no3n', fuzzy=1)
+```
+
+You can request as many fuzzy matches as you like - they will appear after any (exact) sub-string matches. For example, here we search all loaded files for parameters with nitrate in the name:
+
+```{r example find fuzzy no3}
+rswat_find('no3', fuzzy=2)
+```
+
+Matches containing the string "no3" are displayed first, then the two closest approximate matches (nitrogen dioxide parameters, "no2") are added, and the results are grouped by file in the output.
 
 ## Backing up or restoring a project
 
-It is all too easy to violate syntax and parameter range specifications in SWAT+, and the result is usually some inscrutable Fortran error message and a failure to produce output. Don't let this dissuade you from experimenting with the model configuration files. Just use backups.
+Users may at some point accidentally introduce inconsistincies into their project files, and this kind of thing often leads to opaque Fortran error messages from SWAT+ that can be hard to debug. We recommend making backups regularly when working on your project.
 
-A copy of the essential configuration files will amount to very little disk space usage in most cases, and `rswat` makes it easy to copy your project at any time with `rswat_backup()`. 
-
+A copy of the essential configuration files in a SWAT+ project directory will amount to very little disk space usage in most cases, and `rswat` makes it easy to copy your project at any time with `rswat_backup()`. 
 Before we start tinkering with our project, we will make a backup zip file for recovering all of the configuration files (and you should too!)
 
 ```{r backup creation}
-rswat_backup(zip=T, include='config')
+rswat_backup(zip=TRUE, include='config')
 ```
 
-Weather input files, which can be very large, are not included in the "config" group. You can also omit the `include` argument to zip all recognized files in the project directory (including all weather and output files). See `?rswat_backup` and `?rswat_files` for more information on the `include` and `exclude` arguments.
-
-```{r backup creation}
-rswat_files(include='weather')
-```
+The "config" argument specifies to only include model parameter and configuration files. Weather input files, which can be very large, are not included in the "config" category. To zip all recognized files in the project directory (including all weather and output files) just omit the `include` argument. See `?rswat_backup` and `?rswat_files` for more information on `include` and `exclude`.
 
 
-## Opening and editing parameter tables
 
-Say we are happy with the SWAT+ project as it is configured, except that we want to simulate a shorter time period. We will need to make changes to the two timing configuration files, "time.sim" and "print.prt". We start by opening them to view the contents.
 
-`rswat_open` will open any SWAT+ file, returning a copy of the parameter data inside as an R data frame (or a list of them). Here we open the "time.sim" file, which controls the time period of the simulation.
+## Viewing parameter tables
+
+`rswat_open` will open any SWAT+ file, returning a copy of the parameter table data inside as an R data frame, or, when there are multiple tables, a list of them. We start with the "time.sim" file, a simple one-table file controlling the time period of the simulation.
 
 ```{r open time file}
 time.sim = rswat_open('time.sim')
 time.sim
 ```
 
-The R data frame need not be assigned the same name as the file, like we did here, though it seems like the most obvious name to use.
+You can assign any name you want for the data frame. We used the same name as the file here for simplicity.
 
-Some configuration files contain multiple table, so they are returned as a list of data frames. "print.prt" is an important example:
+"print.prt" is an example of a file with multiple tables:
 
 ```{r open print file}
 print.prt = rswat_open('print.prt')
@@ -201,15 +291,14 @@ class(print.prt)
 length(print.prt)
 ```
 
-We are interested in the first table from "print.prt", which controls the time period for printing outputs
+We are interested in the first table, which controls the time period for printing outputs
 
 ```{r extract print table}
-print.prt.t1 = print.prt[[1]]
-print.prt.t1
+print.prt[[1]]
 ```
 
 
-The simulation is currently set up to run the period 1988-1993 and omit the first year from output (burn-in). We will instead request to simulate only the first year, and return all of it. Thus we modify the pair of date fields in each table, as well as the "nyskip" (burn-in) field from "print.prt".
+The simulation is currently set up to run over the period 1988-1993 and omit the first year from output (burn-in). We will instead request to simulate only the first year, and output all of it. This means changing the date fields in both tables, as well as the "nyskip" (burn-in) field from "print.prt".
 
 ```{r change timing}
 # change simulation period
@@ -217,19 +306,21 @@ time.sim[['yrc_end']] = 1989
 time.sim[['day_end']] = time.sim[['day_start']]
 
 # change printout period
-print.prt.t1[['nyskip']] = 0
-print.prt.t1[['yrc_end']] = 1989
-print.prt.t1[['day_end']] = print.prt.t1[['day_start']]
+print.prt[[1]][['nyskip']] = 0
+print.prt[[1]][['yrc_end']] = 1989
+print.prt[[1]][['day_end']] = print.prt[[1]][['day_start']]
 ```
 
-## Save changes
+## Saving changes
 
-To write changes to disk, pass the modified data frame back to `rswat_write`. `rswat` will report the corresponding modifications to the configuration file using the correct syntax and spacing. To prevent accidental overwrites, the argument `overwrite` is by default `FALSE`. Set it to `TRUE` to commit your changes and make them visible to the simulator, by overwriting the SWAT+ file on disk.
+To write changes to disk, pass the modified data frame back to `rswat_write`. `rswat` will report the corresponding modifications to the configuration file using the correct syntax and spacing. To prevent accidental overwrites, the argument `overwrite` is `FALSE` by default. Set it to `TRUE` to commit your changes and make them visible to the simulator, by overwriting the SWAT+ file on disk.
 
 `rswat` relies on *attributes* to tie the return value of `rswat_open` back to its file of origin.
 
 ```{r show attributes}
-attributes(print.prt.t1)
+attributes(print.prt[[1]])
 ```
 
-Be warned that some R functions drop attributes without warning (see `?Extract` for example). If you have issues with `rswat_write` after working on the output of `rswat_open`, check that you haven't accidentally discarded the `rswat` attributes.  
+In a multi-table file like "print.prt" you only need to pass the table that was modified, but `rswat_write` will also accept any list of data frames produced by `rswat_open`, and it will write changes to each corresponding file in turn.  
+
+Be warned that some R functions drop attributes without warning (see `?Extract` for example). If you have issues with `rswat_write` after working on the output of `rswat_open`, check that you haven't accidentally discarded the `rswat` attributes from your data frame(s).  

@@ -21,7 +21,7 @@ name.
 }
 \details{
 Strings are by default truncated/padded to \code{n_max}, the console width as given
-by the R option 'width', and each begins with the special symbol '\r', which
+by the R option 'width', and each begins with the backslash-r symbol, which
 (when passed to \code{cat}) asks the terminal or console in which R is running to
 do a carriage return and overwrite the existing line.
 }

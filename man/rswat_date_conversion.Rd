@@ -7,14 +7,18 @@
 rswat_date_conversion(d, NA_zeros = TRUE, trim = TRUE)
 }
 \arguments{
-\item{d}{either a Date vector or dataframe, whichever \code{d} is not}
+\item{d}{either a Date vector or data frame with fields 'year', 'jday', and optionally 'month'}
+
+\item{NA_zeros}{logical, whether to treat zeros as shorthand for first and last days of the year}
+
+\item{trim}{logical, whether to return omit redundant columns}
 }
 \value{
-either a Date vector or dataframe, whichever \code{d} is not
+either a Date vector or matrix with columns, whichever \code{d} is not
 }
 \description{
 If \code{d} is a Date vector, the function returns a data frame with the same number of rows,
-and columns Julian date ('jday' ) and year ('year'). Otherwise the function assumes \code{d}
+but with columns Julian date ('jday' ) and year ('year'). Otherwise the function assumes \code{d}
 is a data frame (or matrix, or list) containing a 'year' column and a 'jday' or 'month'
 column (or both). It appends a new column 'date' (or overwrites the existing one) with
 these values converted to R Dates.

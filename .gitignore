@@ -5,5 +5,6 @@
 /R_backup
 /example_projects
 /swat_executable
+/demo
 rswat_dev.R
 rswat_dev_older.R

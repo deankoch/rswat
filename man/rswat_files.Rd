@@ -20,6 +20,10 @@ rswat_files(
 
 \item{level}{character, either 'file', 'type', or 'group'}
 
+\item{include}{character vector, a set of file, group, or type names to include}
+
+\item{exclude}{character vector, a set of file, group, or type names to exclude}
+
 \item{known}{logical, indicates to only search among recognized files}
 
 \item{refresh}{logical, indicates to first re-scan the directory}
