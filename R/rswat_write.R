@@ -84,7 +84,7 @@ rswat_write = function(new_df,
   err_output = 'rswat cannot write to output files'
   if( fn_info[['type']] == 'output' ) stop(err_output)
 
-  # formatting and error checking
+  # formatting (as character) and error checking
   new_df = rswat_prewrite(new_df, quiet=quiet, .db=.db)
 
   # by default assume the file will be changed
@@ -92,7 +92,10 @@ rswat_write = function(new_df,
   txt_replace = if(fast) {
 
     # render table as line-by-line plain text (fast method)
-    data.table::fwrite(new_df, sep=' ', eol='\n', quote=FALSE) |> utils::capture.output()
+    data.table::fwrite(new_df,
+                       sep = ' ',
+                       eol = '\n',
+                       quote = FALSE) |> utils::capture.output()
 
   } else {
 
@@ -296,7 +299,7 @@ rswat_prewrite = function(new_df, quiet=FALSE, .db=.rswat_db)
     # overwrite numeric columns with character
     new_df[is_numeric] = Map(\(v, n) {
 
-      char_out = format(v, digits=.rswat_gv_precision('digits'), nsmall=n)
+      char_out = format(v, digits=.rswat_gv_precision('digits'), nsmall=n, scientific=FALSE)
       replace(char_out, is.na(v) | is.na(char_out), na_placeholder)
 
     }, v=new_df[is_numeric], n=n_prec) |> as.data.frame()

@@ -48,5 +48,5 @@ but results in configuration files that are less readable to humans (columns are
 
 Argument \code{refresh=FALSE} disables automatic reloading of files. This is useful for speeding
 performance on bulk overwrites of large files (like weather data) but not recommended for
-interactive sessions where you want \code{rswat_files} (etc) to report up-to-date information.
+interactive sessions.
 }
