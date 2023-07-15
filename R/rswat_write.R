@@ -28,7 +28,8 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
   {
     if( !is.list(new_df) ) stop('first argument must be a data frame or list of them')
     write_result = lapply(new_df, \(df_i) rswat_write(df_i, overwrite=overwrite, quiet=TRUE))
-    df_changes = do.call(rbind, write_result) |> dplyr::arrange(file, field_num)
+    df_changes = do.call(rbind, write_result) |>
+      dplyr::arrange( dplyr::across( dplyr::all_of(c('file', 'field_num')) ) )
     is_changed = nrow(df_changes) > 0
     if(!quiet)
     {
