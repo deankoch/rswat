@@ -1,4 +1,3 @@
-
 #' Initialize an empty data frame
 #'
 #' Helper function to initialize a data frame of the specified size with zero rows.
@@ -195,7 +194,7 @@ rswat_rename = function(d, aliases=NULL) {
 #' name.
 #'
 #' Strings are by default truncated/padded to `n_max`, the console width as given
-#' by the R option 'width', and each begins with the special symbol '\r', which
+#' by the R option 'width', and each begins with the backslash-r symbol, which
 #' (when passed to `cat`) asks the terminal or console in which R is running to
 #' do a carriage return and overwrite the existing line.
 #'
@@ -222,7 +221,7 @@ rwat_progress = function(nm, n_max=NULL) {
 #' Convert between two representations of date
 #'
 #' If `d` is a Date vector, the function returns a data frame with the same number of rows,
-#' and columns Julian date ('jday' ) and year ('year'). Otherwise the function assumes `d`
+#' but with columns Julian date ('jday' ) and year ('year'). Otherwise the function assumes `d`
 #' is a data frame (or matrix, or list) containing a 'year' column and a 'jday' or 'month'
 #' column (or both). It appends a new column 'date' (or overwrites the existing one) with
 #' these values converted to R Dates.
@@ -232,9 +231,11 @@ rwat_progress = function(nm, n_max=NULL) {
 #' sets the date to the first of the month. When only 'year' is specified, the function
 #' assigns Jan 1 of that year.
 #'
-#' @param d either a Date vector or dataframe, whichever `d` is not
+#' @param d either a Date vector or data frame with fields 'year', 'jday', and optionally 'month'
+#' @param NA_zeros logical, whether to treat zeros as shorthand for first and last days of the year
+#' @param trim logical, whether to return omit redundant columns
 #'
-#' @return either a Date vector or dataframe, whichever `d` is not
+#' @return either a Date vector or matrix with columns, whichever `d` is not
 #' @export
 #'
 #' @examples
@@ -257,6 +258,9 @@ rswat_date_conversion = function(d, NA_zeros=TRUE, trim=TRUE) {
   # handle non-date inputs
   if( !is(d, 'Date') )
   {
+    # character strings coercible to Date
+    if( is.character(d) ) return(rswat_date_conversion(as.Date(d), NA_zeros=NA_zeros, trim=trim))
+
     # matrix to data.frame
     if( nrow(d) == 0L ) return(d)
     if( is.matrix(d) ) d = as.data.frame(d)
@@ -296,21 +300,14 @@ rswat_date_conversion = function(d, NA_zeros=TRUE, trim=TRUE) {
       apply(1L, \(x) paste0(x, collapse='-')) |>
       as.Date(format='%j-%Y')
 
-    # trim reduendant date fields on request
+    # trim redundant date fields on request
     if(trim) d_nm = d_nm[ !(d_nm %in% c(aliases, names(aliases)) ) ]
     return(d[, c('date', d_nm), drop=FALSE])
   }
 
-  warning('this mode not implemented yet')
   # handle date inputs
-  out_list = lapply(d, \(x) {
-
-    c(jday = as.integer(as.character(x, format='%j')),
-      year = as.integer(as.character(x, format='%Y')))
-    }
-  )
-
-  return(out_list)
+  return(data.frame(year = as.integer(format(d,'%Y')),
+                    jday = as.integer(format(d,'%j'))))
 }
 
 
