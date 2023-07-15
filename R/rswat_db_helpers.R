@@ -239,10 +239,13 @@ rswat_weather_report = function(lazy = TRUE,
       paste(ifelse(any(!is_full), paste0('(', msg_v_partial, ')'), ''))
 
     # add extra rows for variables not yet fully loaded
-    msg_unobserved = gsub('.', ' ', msg_sub_prefix['sta']) |>
-      paste('[ ? to ? ]') |>
-      paste(paste(v_nm[!is_displayed], collapse=', '))
-    msg_observed = c(msg_observed, msg_unobserved)
+    if( any(!is_displayed) ) {
+
+      msg_unobserved = gsub('.', ' ', msg_sub_prefix['sta']) |>
+        paste('[ ? to ? ]') |>
+        paste(paste(v_nm[!is_displayed], collapse=', '))
+      msg_observed = c(msg_observed, msg_unobserved)
+    }
   }
 
   # optionally print then return character string invisibly
@@ -364,22 +367,23 @@ rswat_sim_dates = function(lazy=TRUE, prt=FALSE, render=TRUE, .db=.rswat_db) {
   is_year_zero = dates_as_int[,'year'] == 0L
   if( any(is_year_zero) )
   {
-    # zero years in time.sim are invalid
+    # zero years in time.sim are invalid whereas in print.prt they mean "same as time.sim"
     if(!prt) { dates = NA } else {
 
-      # zero years in print.prt are shorthand for "same as time.sim"
-      year_sim = rswat_sim_dates(lazy=lazy, prt=FALSE, render=FALSE, .db=.db)[['date']] |>
-        format('%Y') |> as.integer()
-
-      dates_as_int[is_year_zero, 'year'] = year_sim[is_year_zero]
+      date_sim = rswat_sim_dates(lazy=lazy, prt=FALSE, render=FALSE, .db=.db)[['date']]
+      dates_as_int[is_year_zero, 'year'] = sapply(date_sim, \(x) as.integer(format(x, '%Y')))
+      dates_as_int[is_year_zero, 'jday'] = sapply(date_sim, \(x) as.integer(format(x, '%j')))
     }
   }
 
-  # omit the first integer nyskip years to get actual start year for printing
-  if(prt) dates_as_int['start', 'year'] = dates_as_int['start', 'year'] + time_file[['nyskip']]
-
-  # if render=FALSE, return Dates in data frame with two rows
+  # as Dates in data frame with two rows, handle start/end order
   dates = rswat_date_conversion(dates_as_int, NA_zeros=FALSE)
+
+  # omit the first integer nyskip years to get actual start year for printing
+  if(prt) dates[['date']][[1]] = dates[['date']][[1]] + ( 365 * time_file[['nyskip']] )
+
+  # indicate if this lands us beyond the end date
+  if( diff(dates[['date']]) < 0 ) dates[['date']] = c(NA, NA)
   if(!render) return(dates)
   if( anyNA(dates) ) return(NA_character_)
   dates_msg = paste('[', paste(dates[['date']], collapse=' to '), ']')
