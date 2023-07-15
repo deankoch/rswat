@@ -215,8 +215,8 @@ rswat_time = function() {
   # modified accordingly to get the desired number of steps.
 
   # grab up-to-date copies of 'time.sim' and 'print.prt'
-  time.sim = rswat_open('time.sim', quiet=quiet, reload=TRUE)
-  print.prt = rswat_open('print.prt', quiet=quiet, reload=TRUE)
+  time.sim = rswat_open('time.sim', quiet=quiet, refresh=TRUE)
+  print.prt = rswat_open('print.prt', quiet=quiet, refresh=TRUE)
 
   # extract currently assigned start/end dates
   date.start = as.Date(paste(time.sim[,c('yrc_start', 'day_start')], collapse='-'), '%Y-%j')
@@ -234,7 +234,7 @@ rswat_time = function() {
     # toggle all of the print options off and write this change to disk
     print.prt[[5]][, names(print.prt[[5]]) != 'objects'] = 'n'
     print.prt[[5]]['daily'] = 'y'
-    rswat_write(print.prt[[5]], preview=FALSE, quiet=quiet)
+    rswat_write(print.prt[[5]], overwrite=TRUE, quiet=quiet)
   }
 
   # modify 'nyskip' as requested
@@ -279,11 +279,11 @@ rswat_time = function() {
 
     # make these changes in 'time.sim' and overwrite on disk
     time.sim[ names(pars.tochange) ] = pars.tochange
-    rswat_write(time.sim, preview=F, quiet=TRUE)
+    rswat_write(time.sim, overwrite=TRUE, quiet=TRUE)
 
     # make these changes in 'print.prt' and overwrite on disk
     print.prt[[1]][ names(pars.tochange) ] = pars.tochange
-    rswat_write(print.prt[[1]], preview=F, quiet=TRUE)
+    rswat_write(print.prt[[1]], overwrite=TRUE, quiet=TRUE)
     if( !quiet ) cat('done\n')
   }
 
