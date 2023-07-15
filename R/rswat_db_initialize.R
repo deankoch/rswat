@@ -34,10 +34,12 @@ rswat_check = function(quiet=FALSE, .db=.rswat_db)
 
 #' Put this file last in the load order!
 #'
+#' Make sure that all R files appear in the 'include' tags
+#' above. This ensures the R files are collated in the right order.
+#'
 #' The code below defines an rswat_db reference class object to store data and information
 #' about the currently loaded SWAT+ project. The class, its methods, and any dependent
-#' functions must be defined first. Make sure that all R files appear in the 'include' tags
-#' above. This ensures the R files are collated in the right order.
+#' functions must be defined first, hence the collate.
 
 .rswat_db = rswat_db$new()
 rswat_check(quiet=TRUE)

@@ -11,12 +11,16 @@
 #' The function invisibly returns a data frame of information on the files in `swat_dir`,
 #' printing its first few rows (by default, when `quiet=TRUE`).
 #'
-#' Files of type 'output', 'decision_table', 'gwflow' are not loaded by default because they
-#' can be large and slow to parse. Set `exclude=""` to load everything.
+#' Subsets to load can be be specified with `include` and `exclude`, as described in
+#' `?rswat_files`. Files of type 'output', 'decision_table', 'gwflow', 'weather', and
+#' 'output', are not loaded by default because they can be large and slow to parse. Set
+#' `include='more'` to also load weather files. Set `include='all'` to load everything,
+#' or `include='basic'` to load only the 'climate' and 'simulation' groups.
 #'
 #' @param swat_dir character, path to the SWAT+ project directory (should contain "file.cio")
 #' @param exe_path character, path to the SWAT+ simulation executable (should have extension ".exe")
-#' @param load_all logical, indicating to load all configuration files except as specified in `exclude`
+#' @param include character vector, a set of file, group, or type names to include
+#' @param exclude character vector, a set of file, group, or type names to exclude
 #' @param exclude character vector, regular expressions for groups/names to not load
 #' @param reset logical, indicates to re-initialize rswat (erases any loaded data)
 #' @param .db rswat_db object, for internal use
@@ -36,6 +40,9 @@ rswat = function(swat_dir = NULL,
   # check that the package was loaded properly and re-initialize if requested
   rswat_check(quiet=TRUE, .db=.db)
   if(reset) .db$initialize()
+
+  # load docs on first call
+  if( length(.db$docs) == 0 ) .db$set_docs()
 
   # handle calls without a project folder assigned
   old_swat_dir = .db$get_swat_dir()
@@ -97,6 +104,20 @@ rswat = function(swat_dir = NULL,
   if(!quiet & !is_assigned) message('browse files with rswat_files() and rswat_open()')
   return(invisible())
 }
+
+
+#' Return the currently assigned SWAT+ directory
+#'
+#' If the directory has not been assigned yet, the function returns `NA` instead.
+#'
+#' This is a wrapper for calling the appropriate method of the `.rswat_db` object
+#' created when the package was loaded
+#'
+#' @param .db
+#'
+#' @return character, the path to the directory or `NA` if not yet assigned
+#' @export
+rswat_dir = function(.db = .rswat_db) .rswat_db$get_swat_dir()
 
 
 #' Open a SWAT+ project file with rswat
@@ -223,6 +244,8 @@ rswat_open = function(f = NULL,
 #'
 #' @param pattern character, the file name, group, or type of file
 #' @param level character, either 'file', 'type', or 'group'
+#' @param include character vector, a set of file, group, or type names to include
+#' @param exclude character vector, a set of file, group, or type names to exclude
 #' @param known logical, indicates to only search among recognized files
 #' @param refresh logical, indicates to first re-scan the directory
 #' @param quiet logical, suppresses console output

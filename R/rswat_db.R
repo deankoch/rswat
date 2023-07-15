@@ -98,11 +98,14 @@ rswat_db = setRefClass('rswat_db',
       txt <<- list()
       stor_df <<- list()
 
-      # this list loaded from sysdata.rda
-      docs <<- .rswat_io_pdf
+      # this list loaded later on from sysdata.rda
+      docs <<- list()
 
       callSuper(...)
     },
+
+    # docs initialized here instead of in db$new calls to avoid namespace error in build
+    set_docs = function() docs <<- rswat_io_pdf,
 
     # project directory getter, setter, and validator
     get_swat_dir = function() swat_dir,
