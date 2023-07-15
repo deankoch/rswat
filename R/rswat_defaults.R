@@ -11,8 +11,8 @@
 .rswat_gv_include_lu = function(include) switch(include,
                                                 'basic' = c('simulation', 'climate'),
                                                 'default' = 'config',
-                                                'more' = c('weather', .rswat_gv_include_lu('normal')),
-                                                'all' = c('output', .rswat_gv_include_lu('full')),
+                                                'more' = c('weather', .rswat_gv_include_lu('default')),
+                                                'all' = c('output', .rswat_gv_include_lu('more')),
                                                 include)
 
 # aliases for date fields in output files
