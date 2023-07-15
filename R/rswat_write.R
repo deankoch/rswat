@@ -66,7 +66,7 @@ rswat_write = function(new_df, overwrite=FALSE, fast=FALSE, quiet=FALSE, .db=.rs
   if( fn_info[['type']] == 'output' ) stop(err_output)
 
   # formatting and error checking
-  new_df = rswat_prewrite(new_df, .db=.db)
+  new_df = rswat_prewrite(new_df, quiet=quiet, .db=.db)
 
   # by default assume the file will be changed
   is_changed = TRUE
@@ -230,9 +230,15 @@ rswat_prewrite = function(new_df, quiet=FALSE, .db=.rswat_db)
     new_df[has_units] = apply(new_df[has_units], 2, as.numeric)
   }
 
-  # coerce columns to the proper class
+  # get classes of existing fields and replacements
   new_class = sapply(new_df, \(x) head(class(x), 1L))
   old_class = sapply(old_df, \(x) head(class(x), 1L))
+
+  # deal with all-NA columns (defaulting to `NA_character_`) by trusting user's replacement class
+  all_na = sapply(old_df, \(x) all(is.na(x)))
+  if( any(all_na) ) old_class[all_na] = new_class[all_na]
+
+  # coerce columns to the proper class
   is_coerced = new_class != old_class
   if( any(is_coerced) )
   {
@@ -292,8 +298,6 @@ rswat_prewrite = function(new_df, quiet=FALSE, .db=.rswat_db)
   attr(new_df, 'rswat_table_num') = table_num
   return(new_df)
 }
-
-
 
 
 #' Save a copy of a SWAT+ project, or a subset of its files
