@@ -9,6 +9,7 @@ rswat_write(
   overwrite = FALSE,
   fast = FALSE,
   quiet = FALSE,
+  refresh = TRUE,
   .db = .rswat_db
 )
 }
@@ -20,6 +21,8 @@ rswat_write(
 \item{fast}{logical, enables fixed delimiters for faster writing}
 
 \item{quiet}{logical, suppresses console messages}
+
+\item{refresh}{logical, if \code{TRUE} the function reloads the file after modifying it}
 
 \item{.db}{rswat reference object, for internal use}
 }
@@ -42,4 +45,8 @@ files to modify. If \code{overwrite=TRUE} and \code{fast=TRUE} the function also
 but results in configuration files that are less readable to humans (columns are not aligned).
 
 \code{fast=TRUE} mode is mandatory for 'weather' type input data files ('pcp1.pcp' etc).
+
+Argument \code{refresh=FALSE} disables automatic reloading of files. This is useful for speeding
+performance on bulk overwrites of large files (like weather data) but not recommended for
+interactive sessions where you want \code{rswat_files} (etc) to report up-to-date information.
 }
