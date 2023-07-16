@@ -344,8 +344,8 @@ rswat_db$methods( list(
     # temperature has two columns of data
     if(group == 'tmp')
     {
-      df_start[3L, 'name'] = 'tmp_min'
-      df_add = utils::modifyList(df_start[3L,], data.frame(field_num=4L, name='tmp_max'))
+      df_start[3L, 'name'] = 'tmp_max'
+      df_add = utils::modifyList(df_start[3L,], data.frame(field_num=4L, name='tmp_min'))
       df_start = rbind(df_start, df_add)
     }
 
