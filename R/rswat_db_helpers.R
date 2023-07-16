@@ -230,13 +230,13 @@ rswat_weather_report = function(lazy = TRUE,
     # string listing variables spanning subset of full range
     msg_v_partial = paste(v_nm[stations_loaded][!is_full], collapse=', ')
 
-    # message about these variables
+    # message about these variables (asterix indicates incomplete coverage)
     is_displayed = stations_loaded[is_full]
-    msg_v_full = paste(v_nm[is_displayed], collapse=', ')
+    v_nm_asterix = v_nm[is_displayed]
+    if( any(!is_full) ) v_nm_asterix[!is_full] = v_nm_asterix[!is_full] |> paste0('*')
     msg_observed = msg_sub_prefix['sta'] |>
       paste(msg_period) |>
-      paste(msg_v_full) |>
-      paste(ifelse(any(!is_full), paste0('(', msg_v_partial, ')'), ''))
+      paste(paste(v_nm_asterix, collapse=', '))
 
     # add extra rows for variables not yet fully loaded
     if( any(!is_displayed) ) {
