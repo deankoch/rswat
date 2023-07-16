@@ -27,18 +27,19 @@
 #' * open one of these files `f` by calling `get_df(f)` (returns list of data frames)
 #'
 #' @section .rswat_db:
-#' When the `rswat` package is loaded, an rswat_db class object called `.rswat_db` is defined
-#' in the user's global environment. This stores all data related to the currently loaded
-#' project. Non-developers should avoid interacting directly with `.rswat_db` (ie don't call
-#' its methods or set its fields) - instead use the provided helper functions.
+#' When the `rswat` package is loaded, an rswat_db class object called `.rswat_db` is
+#' initialized in the package environment. This stores all data related to the currently
+#' loaded project and makes it available to code within the package. Non-developers should
+#' avoid interacting directly with `rswat_db` (ie don't call its methods or set its fields)
+#' and instead use the provided helper functions. Developers should use `devtools::load_all()`
+#' to initialize an `.rswat_db` object in their global environment.
 #'
 #' @section Reference class R5:
 #' R5 objects behave like traditional OOP classes you would find in C++ or Python, and
 #' this is quite different from the value semantics that normally apply when interacting
-#' with objects in R.
-#'
-#' For example, R5 methods come bundled with the object itself (encapsulation), and they
-#' are accessed using the `$` operator, the same way that we access entries in ordinary R lists.
+#' with objects in R. For example, R5 methods come bundled with the object itself
+#' (encapsulation), and they are accessed using the `$` operator, the same way that we acces
+#' entries in ordinary R lists.
 #'
 #' R5 objects also have reference semantics, meaning that if you "copy" `rs` by assignment
 #' with `x = rs`, then modify `x`, you are actually modifying `rs`. This is helpful for
