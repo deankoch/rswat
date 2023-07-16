@@ -104,7 +104,6 @@ rswat_exec = function(quiet=FALSE, .db=.rswat_db) {
 #' @param obj character, three-character object type code (see details)
 #' @param name character, one of 'tot', 'sur', 'lat', 'til', 'rhg' (object-dependent)
 #' @param revert logical, removes OHG output
-#' @param overwrite logical, writes changes to files on disk
 #' @param quiet logical, suppresses console output
 #' @param .db rswat reference object, for internal use
 #'
@@ -140,7 +139,7 @@ rswat_ohg = function(i = 1L,
                                width=.rswat_gv_precision('n_line'),
                                max=.rswat_gv_precision('n_all')) |> utils::capture.output()
 
-  # debugging: fix double-escaped backslashes
+  # fix double-escaped backslashes
   write_txt = c(comment_txt, gsub('\\\\', '\\', write_txt, fixed=TRUE))
 
   # check if the file exists already and print some feedback to user
@@ -174,120 +173,85 @@ rswat_ohg = function(i = 1L,
   # load new file, or, in revert mode, return nothing
   if(revert) return(invisible())
   rswat_open('object.prt', refresh=TRUE, quiet=TRUE, .db=.db)
-
 }
 
 #' Configure simulation time for a SWAT+ simulation
 #'
-#' This modifies 'print.prt' and 'time.sim' on disk to configure a simulation over the
-#' requested dates. Outputs are printed starting `nyskip` years after the starting date.
+#' This modifies 'print.prt' and/or 'time.sim' on disk to configure a simulation over the
+#' requested period covering `dates`.
+#'
+#' When `daily=TRUE`, the function configures SWAT+ for daily output: 'step' in 'time.sim'
+#' is set for daily periods, `interval` is set for daily printing, and 'print.prt' is
+#' modified to request all of the daily files, and none of the non-daily ones.
+#'
+#' Only the range of `dates` matters. The function uses its
+#' earliest and latest dates define the starting and ending points of a gap-less series.
 #'
 #' @param dates integer, vector, or data frame indicating the dates to simulate
-#' @param nyskip integer, the number of years to skip in printed output
+#' @param daily logical, whether to configure SWAT+ for daily output
+#' @param quiet logical, whether to suppress console output
 #'
-#' @return something
+#' @return the current simulation date range
 #' @export
 #'
-rswat_time = function() {
-
-  # ARGUMENTS:
-  #
-  # `dates`: integer, vector, or data frame indicating the dates to simulate (see DETAILS)
-  # `nyskip`:
-  # `daily`: boolean, indicates to make adjustments for daily output (see DETAILS)
-  # 'quiet': boolean, indicating to suppress console messages
-  #
-  # RETURN:
-  #
-  # named (Date class) vector of start and end dates currently set in 'time.sim'
-  #
-  # DETAILS:
-  #
-
-  #
-  # If `daily == TRUE` then 'step' (in 'time.sim') is set to run daily time steps,
-  # `interval` is set for daily printing, and 'print.prt' is modified to request
-  # all of the daily files, and none of the non-daily ones.
-  #
-  # Argument 'dates' can be a dataframe containing a 'date' column or a vector of dates
-  # (must be coercible with `as.Date`); or an integer indicating the number of timesteps,
-  # in which case the existing start date from the file is reused, and the end date is
-  # modified accordingly to get the desired number of steps.
+rswat_time = function(dates = NULL,
+                      overwrite = FALSE,
+                      daily = FALSE,
+                      prt = TRUE,
+                      sim = TRUE,
+                      quiet = FALSE,
+                      .db = .db) {
 
   # grab up-to-date copies of 'time.sim' and 'print.prt'
   time.sim = rswat_open('time.sim', quiet=quiet, refresh=TRUE)
   print.prt = rswat_open('print.prt', quiet=quiet, refresh=TRUE)
 
-  # extract currently assigned start/end dates
-  date.start = as.Date(paste(time.sim[,c('yrc_start', 'day_start')], collapse='-'), '%Y-%j')
-  date.end = as.Date(paste(time.sim[,c('yrc_end', 'day_end')], collapse='-'), '%Y-%j')
-
   # if requested, modify 'step', 'interval', and print table for daily timestep outputs
-  if( daily )
+  if(daily)
   {
     # other possible values for step include 1, 24, 96, 1440
-    time.sim$step = 0
+    time.sim[['step']] = 0L
 
     # indicates to print 1 output row per timestep
-    print.prt[[1]]$interval = 1
+    print.prt[[1]][['interval']] = 1L
 
-    # toggle all of the print options off and write this change to disk
-    print.prt[[5]][, names(print.prt[[5]]) != 'objects'] = 'n'
-    print.prt[[5]]['daily'] = 'y'
-    rswat_write(print.prt[[5]], overwrite=TRUE, quiet=quiet)
+    # toggle all of the other print options off and write this change to disk
+    print.prt[[5]][, names(print.prt[[5]]) != 'objects'] = FALSE
+    print.prt[[5]]['daily'] = TRUE
   }
-
-  # modify 'nyskip' as requested
-  print.prt[[1]]$nyskip = nyskip
 
   # if no dates supplied skip ahead
   if( !is.null(dates) )
   {
-    # handle dataframe input
-    if( is.data.frame(dates) ) dates = dates$date
+    if( !('Date' %in% class(dates)) ) stop('dates must have class "Date"')
 
-    # handle numeric input
-    if( is.numeric(dates) )
-    {
-      # coerce to integer and interpret as number of days
-      dates = as.integer(dates)
-      if( length(dates) > 1 ) stop('numeric-type `dates` input must be a single integer')
+    # assign new start and end dates
+    date_start = min(dates) |> rswat_date_conversion()
+    date_end = max(dates) |> rswat_date_conversion()
 
-      # modify end date accordingly
-      date.end = date.start + dates
+    if(sim) {
 
-    } else {
-
-      # for all other input classes, attempt to coerce to Date
-      dates = as.Date( dates[!is.na(dates)] )
-      if( length(dates) == 0 ) stop('`dates` could not be interpreted as Date object')
-
-      # assign new start and end dates
-      date.start = min(dates)
-      date.end = max(dates)
-
+      time.sim[['day_start']] = date_start[['jday']]
+      time.sim[['yrc_start']] = date_start[['year']]
+      time.sim[['day_end']] = date_end[['jday']]
+      time.sim[['yrc_end']] = date_end[['year']]
     }
 
-    # build dataframe with new dates
-    pars.tochange = c(day_start = as.integer(format(date.start, '%j')),
-                      yrc_start = as.integer(format(date.start, '%Y')),
-                      day_end = as.integer(format(date.end, '%j')),
-                      yrc_end = as.integer(format(date.end, '%Y')))
+    if(prt) {
 
-    # progress message
-    if( !quiet ) cat('writing to time.sim and print.prt...')
-
-    # make these changes in 'time.sim' and overwrite on disk
-    time.sim[ names(pars.tochange) ] = pars.tochange
-    rswat_write(time.sim, overwrite=TRUE, quiet=TRUE)
-
-    # make these changes in 'print.prt' and overwrite on disk
-    print.prt[[1]][ names(pars.tochange) ] = pars.tochange
-    rswat_write(print.prt[[1]], overwrite=TRUE, quiet=TRUE)
-    if( !quiet ) cat('done\n')
+      print.prt[[1]][['day_start']] = date_start[['jday']]
+      print.prt[[1]][['yrc_start']] = date_start[['year']]
+      print.prt[[1]][['day_end']] = date_end[['jday']]
+      print.prt[[1]][['yrc_end']] = date_end[['year']]
+    }
   }
 
-  # return the current simulation date range
-  return( c(start=date.start, end=date.end) )
+  # write the changes to disk
+  write_result = list(rswat_write(print.prt[c(1,5)], overwrite=overwrite, quiet=quiet),
+                      rswat_write(time.sim, overwrite=overwrite, quiet=quiet))
 
+  # print the current simulation date range
+  message('simulation dates: ', rswat_sim_dates(render=TRUE))
+  message('    output dates: ', rswat_sim_dates(prt=TRUE, render=TRUE))
+  return( invisible(write_result) )
 }

@@ -4,17 +4,35 @@
 \alias{rswat_time}
 \title{Configure simulation time for a SWAT+ simulation}
 \usage{
-rswat_time()
+rswat_time(
+  dates = NULL,
+  overwrite = FALSE,
+  daily = FALSE,
+  prt = TRUE,
+  sim = TRUE,
+  quiet = FALSE,
+  .db = .db
+)
 }
 \arguments{
 \item{dates}{integer, vector, or data frame indicating the dates to simulate}
 
-\item{nyskip}{integer, the number of years to skip in printed output}
+\item{daily}{logical, whether to configure SWAT+ for daily output}
+
+\item{quiet}{logical, whether to suppress console output}
 }
 \value{
-something
+the current simulation date range
 }
 \description{
-This modifies 'print.prt' and 'time.sim' on disk to configure a simulation over the
-requested dates. Outputs are printed starting \code{nyskip} years after the starting date.
+This modifies 'print.prt' and/or 'time.sim' on disk to configure a simulation over the
+requested period covering \code{dates}.
+}
+\details{
+When \code{daily=TRUE}, the function configures SWAT+ for daily output: 'step' in 'time.sim'
+is set for daily periods, \code{interval} is set for daily printing, and 'print.prt' is
+modified to request all of the daily files, and none of the non-daily ones.
+
+Only the range of \code{dates} matters. The function uses its
+earliest and latest dates define the starting and ending points of a gap-less series.
 }
