@@ -23,7 +23,7 @@ the R-environment.
 
 Check out our [Introduction
 article](https://github.com/deankoch/rswat/blob/main/vignettes/articles/rswat_intro.md)
-for quick tour of the major features in rswat
+for a quick tour of the major features in rswat
 
 <img src="vignettes/articles/rswat_intro_files/figure-gfm/source-project-1.png" width="100%" style="display: block; margin: auto;" />
 
