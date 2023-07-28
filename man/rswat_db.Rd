@@ -55,20 +55,21 @@ configuration files (to make \code{line_df}). For example,
 
 \section{.rswat_db}{
 
-When the \code{rswat} package is loaded, an rswat_db class object called \code{.rswat_db} is defined
-in the user's global environment. This stores all data related to the currently loaded
-project. Non-developers should avoid interacting directly with \code{.rswat_db} (ie don't call
-its methods or set its fields) - instead use the provided helper functions.
+When the \code{rswat} package is loaded, an rswat_db class object called \code{.rswat_db} is
+initialized in the package environment. This stores all data related to the currently
+loaded project and makes it available to code within the package. Non-developers should
+avoid interacting directly with \code{rswat_db} (ie don't call its methods or set its fields)
+and instead use the provided helper functions. Developers should use \code{devtools::load_all()}
+to initialize an \code{.rswat_db} object in their global environment.
 }
 
 \section{Reference class R5}{
 
 R5 objects behave like traditional OOP classes you would find in C++ or Python, and
 this is quite different from the value semantics that normally apply when interacting
-with objects in R.
-
-For example, R5 methods come bundled with the object itself (encapsulation), and they
-are accessed using the \code{$} operator, the same way that we access entries in ordinary R lists.
+with objects in R. For example, R5 methods come bundled with the object itself
+(encapsulation), and they are accessed using the \code{$} operator, the same way that we acces
+entries in ordinary R lists.
 
 R5 objects also have reference semantics, meaning that if you "copy" \code{rs} by assignment
 with \code{x = rs}, then modify \code{x}, you are actually modifying \code{rs}. This is helpful for

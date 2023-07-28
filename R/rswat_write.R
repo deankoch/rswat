@@ -487,7 +487,7 @@ rswat_backup = function(dest = NULL,
 #' zip file will be collapsed (probably a bad thing when unintended). It is recommended
 #' to only load zip files created by `rswat` (see `?rswat_export`)
 #'
-#' @param backup character, path to the
+#' @param backup character, path to the backup
 #' @param dest character, path to the desired output file or folder
 #' @param overwrite logical, enables modifying or deleting contents destination directory
 #' @param quiet logical, suppresses console output

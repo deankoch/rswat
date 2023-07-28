@@ -25,8 +25,6 @@ rswat_ohg(
 \item{quiet}{logical, suppresses console output}
 
 \item{.db}{rswat reference object, for internal use}
-
-\item{overwrite}{logical, writes changes to files on disk}
 }
 \value{
 either the data frame written to "object.prt" (revert=TRUE), or NULL (revert=TRUE)

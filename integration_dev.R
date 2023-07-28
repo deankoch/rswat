@@ -11,19 +11,25 @@ load_all()
 #library(rswat)
 
 # # simple example to test weather write with new rows
-d ='D:/rswat_data/yellowstone/split/lamar_river/qswat/lamar_river/Scenarios/Default/TxtInOut'
-rswat(d, include='basic')
-y = rswat_open('pcp2.pcp')
-new_df = y[[2]] |> rbind(data.frame(year=2023L, jday=197L, pcp=100))
-new_df |> rswat_write(overwrite=F)
-new_df |> rswat_write(overwrite=T, quiet=TRUE)
+# d ='D:/rswat_data/yellowstone/split/lamar_river/qswat/lamar_river/Scenarios/Default/TxtInOut'
+# rswat(d, include='basic')
+#
+# rswat(d, include='more')
+#
+
+
+# y = rswat_open('pcp2.pcp')
+# new_df = y[[2]] |> rbind(data.frame(year=2023L, jday=197L, pcp=60))
+# new_df |> rswat_write(overwrite=F)
+# new_df |> rswat_write(overwrite=T, quiet=TRUE, refresh=FALSE)
+# rswat_open('pcp2.pcp')
 
 # TODO: check behavior of NWIS update calls on individual sub-catchments
 
 # pick one of the paths to the QSWAT projects
 data_dir = 'D:/rswat_data/yellowstone'
 sub_dirs = save_split(data_dir)[['sub']]
-i = 3
+i = 1
 
 # extract the SWAT+ path
 sub_dir = sub_dirs[i]
@@ -36,16 +42,33 @@ swat_exe = qswat_path[['simulator_dir']] |>
   sort() |> tail(1)
 
 # load project and assign simulator
-swat_dir |> rswat(swat_exe, include='basic')
+swat_dir |> rswat(swat_exe, include='more')
 
 # fix the default print settings to show warm-up
-rswat_open('print.prt')[[1]] |> dplyr::mutate(nyskip=0L) |> rswat_write(overwrite=TRUE)
+rswat_open('print.prt')[[1]] |>
+  dplyr::mutate(nyskip=0L) |>
+  rswat_write(overwrite=TRUE)
+
+# simulate this year
+dates = as.Date(c('2020-07-15', '2023-07-15'))
+dates |> rswat_time(overwrite=TRUE)
+exec_result = rswat_exec()
+# TODO: clean up output here
+
+rswat_files(include='output')
+
+xx = rswat_open('basin_sd_chamorph_day.txt') |> rswat_date_conversion()
+
+
+
+xx[c('date', 'flo_out')] |> plot(type='l')
 
 
 
 
-# TODO: find the mapping of polygon IDs to subbasins
-# TODO: then copy weather data in a loop
+
+
+
 # TODO: run simulation and identify outlet object ID
 
 # TODO: select parameters, select bounds

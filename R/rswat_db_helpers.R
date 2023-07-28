@@ -313,10 +313,10 @@ rswat_weather_dates = function(lazy=TRUE, .db=.rswat_db) {
         }) )
 
         # validity check
-        nm_out = c('start', 'end')
-        msg_unequal = paste('unequal', nm_out, 'dates in weather files:', paste(f, collapse=', '))
-        if( !all(diff(start_df[['date']]) == 0) ) warning(msg_unequal[1L])
-        if( !all(diff(end_df[['date']]) == 0) ) warning(msg_unequal[2L])
+        # nm_out = c('start', 'end')
+        # msg_unequal = paste('unequal', nm_out, 'dates in weather files:', paste(f, collapse=', '))
+        # if( !all(diff(start_df[['date']]) == 0) ) warning(msg_unequal[1L])
+        # if( !all(diff(end_df[['date']]) == 0) ) warning(msg_unequal[2L])
 
         # make a group label for printing
         dates_range = c(start_df[['date']][1L], end_df[['date']][1L])
