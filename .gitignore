@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+*.pdf
 /R_backup
 /example_projects
 /swat_executable
