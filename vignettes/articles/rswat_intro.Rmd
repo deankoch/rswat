@@ -21,9 +21,7 @@ knitr::opts_chunk$set(
 This article explains how to use rswat to explore and manage a SWAT+ project. It picks up where the [Lamar River tutorial](https://github.com/deankoch/rswat.maker/blob/master/vignettes/articles/lamar.md) from [`rswat.maker`](https://github.com/deankoch/rswat.maker) left off, by showing how to edit parameters and carry out simulations. Our example code is for the small headwater catchment of Soda Butte Creek, near the Silver Gate boundary in the northeast corner of Yellowstone National Park.
 
 ```{r setup, include=FALSE}
-#library(rswat)
-library(devtools)
-load_all()
+library(rswat)
 library(rswat.maker)
 # rmarkdown::render('D:/rswat/vignettes/articles/rswat_intro.Rmd')
 

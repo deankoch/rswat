@@ -23,17 +23,16 @@ This article explains how to use rswat to explore and manage a SWAT+
 project. It picks up where the [Lamar River
 tutorial](https://github.com/deankoch/rswat.maker/blob/master/vignettes/articles/lamar.md)
 from [`rswat.maker`](https://github.com/deankoch/rswat.maker) left off,
-by showing how to edit parameters and carry out simulations.
-
-Our example code is for the small headwater catchment of Soda Butte
-Creek, near the Silver Gate boundary in the northeast corner of
-Yellowstone National Park.
+by showing how to edit parameters and carry out simulations. Our example
+code is for the small headwater catchment of Soda Butte Creek, near the
+Silver Gate boundary in the northeast corner of Yellowstone National
+Park.
 
 <img src="rswat_intro_files/figure-gfm/source-project-1.png" style="display: block; margin: auto;" />
 
 # Getting started
 
-Users will need an existing SWAT+ project directory. This is a
+Users will need a pre-existing SWAT+ project directory. This is a
 collection of several dozen plaintext config files, usually in a
 directory called “TxtInOut” created by QSWAT+ and SWAT+ Editor. Check
 out [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an
@@ -117,16 +116,16 @@ rswat_files()
 #> # A tibble: 222 × 10
 #>    file           group      type   n_line n_var n_table        size modified            known loaded
 #>    <chr>          <chr>      <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 14:02:06 TRUE  TRUE  
-#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 14:02:06 TRUE  TRUE  
-#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 14:02:06 TRUE  TRUE  
-#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 14:02:06 TRUE  TRUE  
-#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 14:02:06 TRUE  TRUE  
-#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 14:02:06 TRUE  TRUE  
-#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 14:02:06 TRUE  TRUE  
-#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 14:02:06 TRUE  TRUE  
-#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 14:02:06 TRUE  TRUE  
-#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 14:02:06 TRUE  TRUE  
+#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 14:05:26 TRUE  TRUE  
+#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 14:05:26 TRUE  TRUE  
+#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 14:05:26 TRUE  TRUE  
+#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 14:05:26 TRUE  TRUE  
+#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 14:05:26 TRUE  TRUE  
+#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 14:05:26 TRUE  TRUE  
+#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 14:05:26 TRUE  TRUE  
+#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 14:05:26 TRUE  TRUE  
+#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 14:05:26 TRUE  TRUE  
+#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 14:05:26 TRUE  TRUE  
 #> # ℹ 212 more rows
 ```
 
@@ -139,13 +138,13 @@ rswat_files('climate')
 #> # A tibble: 7 × 10
 #>   file            group   type   n_line n_var n_table        size modified            known loaded
 #>   <chr>           <chr>   <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 14:02:06 TRUE  TRUE  
-#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 14:02:06 TRUE  TRUE  
-#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 14:02:06 TRUE  TRUE  
-#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 14:02:06 TRUE  TRUE  
-#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 14:02:06 TRUE  TRUE  
-#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 14:02:06 TRUE  TRUE  
-#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 14:02:06 TRUE  TRUE
+#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 14:05:26 TRUE  TRUE  
+#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 14:05:26 TRUE  TRUE  
+#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 14:05:26 TRUE  TRUE  
+#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 14:05:26 TRUE  TRUE  
+#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 14:05:26 TRUE  TRUE  
+#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 14:05:26 TRUE  TRUE  
+#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 14:05:26 TRUE  TRUE
 ```
 
 ## Search
@@ -455,7 +454,7 @@ to run the simulator and write output to the project directory.
 
 ``` r
 rswat_exec()
-#> SWAT+ simulation finished in 3.35 seconds
+#> SWAT+ simulation finished in 3.56 seconds
 #> 7 log and 64 output and 10 unknown files were written
 #> # A tibble: 81 × 2
 #>    file             type  
