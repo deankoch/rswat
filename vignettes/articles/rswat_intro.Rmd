@@ -8,11 +8,11 @@ output:
 bibliography: rswat_intro.bib
 ---
 
+
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
-  cache=TRUE
+  comment = "#>"
 )
 ```
 
