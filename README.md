@@ -14,9 +14,10 @@ workflow to build QSWAT+ projects and turn them into a SWAT+ models.
 
 ## Workflow
 
-rswat uses R data frames to represent SWAT+ the parameter tables on
-disk. Users can explore existing projects, execute simulations, train
-models, and view the results, all from within the R-environment.
+rswat uses R data frames to represent SWAT+ parameter tables on disk. We
+provide tools to explore existing projects, search documentation,
+execute simulations, train models, and view the results, all from within
+the R-environment.
 
 ## Example
 
