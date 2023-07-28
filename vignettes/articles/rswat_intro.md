@@ -8,11 +8,11 @@ July 27, 2023
   - [Open a project](#open-a-project)
 - [Exploring SWAT+](#exploring-swat)
   - [File index](#file-index)
+  - [Open config files](#open-config-files)
+  - [Open output files](#open-output-files)
   - [Search](#search)
   - [Documentation](#documentation)
 - [Editing](#editing)
-  - [Open config files](#open-config-files)
-  - [Open output files](#open-output-files)
   - [Modify parameters](#modify-parameters)
   - [Project state](#project-state)
 - [Simulations](#simulations)
@@ -83,7 +83,7 @@ summary of the project
 rswat()
 #> all requested files loaded
 #> rswat summary
-#> →  simulator: C:/SWAT/SWATPlus/SWATPlusEditor/resources/app.asar.unpacked/static/swat_exe/rev60.5.7_64rel.exe
+#> ○  simulator: not assigned
 #> →  directory: D:/rswat_data/swat/soda_test
 #>    --------- 
 #>  ⤷  file.cio: lists 63 config files in 19 groups 
@@ -91,7 +91,7 @@ rswat()
 #>        ⤷ wgn: simulating none
 #>        ○ sta: pcp, tmp, slr, hmd, wnd (none loaded) 
 #>  ⤷  time.sim: [ 2022-07-28 to 2023-07-28 ]
-#>  ⤷ print.prt: [ 2022-07-28 to 2023-07-28 ]
+#>  ⤷ print.prt: [ 2023-07-28 to 2023-07-28 ]
 #>    ⤷   daily: none
 #>    ⤷ monthly: none
 #>    ⤷  yearly: all
@@ -122,16 +122,16 @@ rswat_files()
 #> # A tibble: 222 × 10
 #>    file           group      type   n_line n_var n_table        size modified            known loaded
 #>    <chr>          <chr>      <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 15:12:51 TRUE  TRUE  
-#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 15:12:51 TRUE  TRUE  
-#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 15:12:51 TRUE  TRUE  
-#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 15:12:51 TRUE  TRUE  
-#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 15:12:51 TRUE  TRUE  
-#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 15:12:51 TRUE  TRUE  
-#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 15:12:51 TRUE  TRUE  
-#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 15:12:51 TRUE  TRUE  
-#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 15:12:51 TRUE  TRUE  
-#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 15:12:51 TRUE  TRUE  
+#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 15:31:49 TRUE  TRUE  
+#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 15:31:50 TRUE  TRUE  
+#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 15:31:50 TRUE  TRUE  
+#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 15:31:50 TRUE  TRUE  
+#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 15:31:49 TRUE  TRUE  
+#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 15:31:50 TRUE  TRUE  
+#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 15:31:49 TRUE  TRUE  
+#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 15:31:50 TRUE  TRUE  
+#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 15:31:50 TRUE  TRUE  
+#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 15:31:50 TRUE  TRUE  
 #> # ℹ 212 more rows
 ```
 
@@ -144,14 +144,72 @@ rswat_files('climate')
 #> # A tibble: 7 × 10
 #>   file            group   type   n_line n_var n_table        size modified            known loaded
 #>   <chr>           <chr>   <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 15:12:51 TRUE  TRUE  
-#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 15:12:51 TRUE  TRUE  
-#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 15:12:51 TRUE  TRUE  
-#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 15:12:51 TRUE  TRUE  
-#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 15:12:51 TRUE  TRUE  
-#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 15:12:51 TRUE  TRUE  
-#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 15:12:51 TRUE  TRUE
+#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 15:31:49 TRUE  TRUE  
+#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 15:31:50 TRUE  TRUE  
+#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 15:31:50 TRUE  TRUE  
+#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 15:31:50 TRUE  TRUE  
+#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 15:31:50 TRUE  TRUE  
+#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 15:31:50 TRUE  TRUE  
+#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 15:31:50 TRUE  TRUE
 ```
+
+## Open config files
+
+To open a file, pass the file name to `rswat_open`. For example, the
+‘time.sim’ file controls the time period of simulations, and consists of
+a single, one-line table. `rswat_open` returns it as a single data frame
+
+``` r
+rswat_open('time.sim') |> str()
+#> 'data.frame':    1 obs. of  5 variables:
+#>  $ day_start: int 209
+#>  $ yrc_start: int 2022
+#>  $ day_end  : int 209
+#>  $ yrc_end  : int 2023
+#>  $ step     : int 0
+#>  - attr(*, "rswat_path")= chr "D:/rswat_data/swat/soda_test"
+#>  - attr(*, "rswat_fname")= chr "time.sim"
+#>  - attr(*, "rswat_table_num")= int 1
+```
+
+Most SWAT+ config files have this very simple single-table structure.
+The few multi-table exceptions, such as `print.prt`, are returned as a
+list of data frames. For example this code prints the first two tables
+
+``` r
+rswat_open('print.prt') |> head(2)
+#> [[1]]
+#>   nyskip day_start yrc_start day_end yrc_end interval
+#> 1      1         0         0       0       0        1
+#> 
+#> [[2]]
+#>   aa_int_cnt
+#> 1          0
+```
+
+## Open output files
+
+Outputs are tabular so they can be browsed the same way as config files,
+using `rswat_files` and `rswat_open`. For example, the yearly water
+balance file in our example looks like this
+
+``` r
+rswat_open('basin_wb_yr.txt') |> rswat_date_conversion() |> dplyr::tibble()
+#> # A tibble: 1 × 44
+#>   date        unit gis_id name     precip snofall snomlt surq_gen  latq wateryld  perc    et ecanopy eplant
+#>   <date>     <int>  <int> <chr>     <dbl>   <dbl>  <dbl>    <dbl> <dbl>    <dbl> <dbl> <dbl>   <dbl>  <dbl>
+#> 1 2023-07-28     1      1 Drswat_…   692.    403.   524.     67.7  14.5     82.2  46.4  105.    11.7   55.4
+#> # ℹ 30 more variables: esoil <dbl>, surq_cont <dbl>, cn <dbl>, sw_init <dbl>, sw_final <dbl>,
+#> #   sw_ave <dbl>, sw_300 <dbl>, sno_init <dbl>, sno_final <dbl>, snopack <dbl>, pet <dbl>, qtile <dbl>,
+#> #   irr <dbl>, surq_runon <dbl>, latq_runon <dbl>, overbank <dbl>, surq_cha <dbl>, surq_res <dbl>,
+#> #   surq_ls <dbl>, latq_cha <dbl>, latq_res <dbl>, latq_ls <dbl>, gwtranq <dbl>, satex <dbl>,
+#> #   satex_chan <dbl>, sw_change <dbl>, lagsurf <dbl>, laglatq <dbl>, lagsatex <dbl>, wet_out <dbl>
+```
+
+`dplyr::tibble` is useful for printing these results in R, as the output
+tables are often very long (for daily outputs at least) and too wide to
+print without wrapping. `rswat_date_conversion` translates the Julian
+date columns to an R Date column.
 
 ## Search
 
@@ -276,69 +334,10 @@ rswat_docs('evapotranspiration', defs=TRUE)
 
 # Editing
 
-So far we have only explored the structure of an existing project. But
-the real power of rswat is in allowing R users to edit projects by
-easily reading and modifying the parameters in the SWAT+ config files on
-disk. rswat makes this simple and intuitive for R users by representing
-all config files as data frames
-
-## Open config files
-
-To open a file, pass the file name to `rswat_open`. For example, the
-‘time.sim’ file controls the time period of simulations, and consists of
-a single, one-line table. `rswat_open` returns it as a single data frame
-
-``` r
-rswat_open('time.sim') |> str()
-#> 'data.frame':    1 obs. of  5 variables:
-#>  $ day_start: int 209
-#>  $ yrc_start: int 2022
-#>  $ day_end  : int 209
-#>  $ yrc_end  : int 2023
-#>  $ step     : int 0
-#>  - attr(*, "rswat_path")= chr "D:/rswat_data/swat/soda_test"
-#>  - attr(*, "rswat_fname")= chr "time.sim"
-#>  - attr(*, "rswat_table_num")= int 1
-```
-
-Most SWAT+ config files have this very simple single-table structure.
-The few multi-table exceptions, such as `print.prt`, are returned as a
-list of data frames. For example this code prints the first two tables
-
-``` r
-rswat_open('print.prt') |> head(2)
-#> [[1]]
-#>   nyskip day_start yrc_start day_end yrc_end interval
-#> 1      1         0         0       0       0        1
-#> 
-#> [[2]]
-#>   aa_int_cnt
-#> 1          0
-```
-
-## Open output files
-
-Outputs are tabular so they can be browsed the same way as config files,
-using `rswat_files` and `rswat_open`. For example, the yearly water
-balance file in our example looks like this
-
-``` r
-rswat_open('basin_wb_yr.txt') |> rswat_date_conversion() |> dplyr::tibble()
-#> # A tibble: 1 × 44
-#>   date        unit gis_id name     precip snofall snomlt surq_gen  latq wateryld  perc    et ecanopy eplant
-#>   <date>     <int>  <int> <chr>     <dbl>   <dbl>  <dbl>    <dbl> <dbl>    <dbl> <dbl> <dbl>   <dbl>  <dbl>
-#> 1 2023-07-28     1      1 Drswat_…   692.    403.   524.     67.7  14.5     82.2  46.4  105.    11.7   55.4
-#> # ℹ 30 more variables: esoil <dbl>, surq_cont <dbl>, cn <dbl>, sw_init <dbl>, sw_final <dbl>,
-#> #   sw_ave <dbl>, sw_300 <dbl>, sno_init <dbl>, sno_final <dbl>, snopack <dbl>, pet <dbl>, qtile <dbl>,
-#> #   irr <dbl>, surq_runon <dbl>, latq_runon <dbl>, overbank <dbl>, surq_cha <dbl>, surq_res <dbl>,
-#> #   surq_ls <dbl>, latq_cha <dbl>, latq_res <dbl>, latq_ls <dbl>, gwtranq <dbl>, satex <dbl>,
-#> #   satex_chan <dbl>, sw_change <dbl>, lagsurf <dbl>, laglatq <dbl>, lagsatex <dbl>, wet_out <dbl>
-```
-
-`dplyr::tibble` is useful for printing these results in R, as the output
-tables are often very long (for daily outputs at least) and too wide to
-print without wrapping. `rswat_date_conversion` translates the Julian
-date columns to an R Date column.
+So far we have only browsed the files for an existing project. The real
+power of rswat is in allowing R users to easily modifying the parameters
+in the SWAT+ config files on disk. rswat makes this more intuitive for R
+users by representing all config files as data frames
 
 ## Modify parameters
 
@@ -394,7 +393,7 @@ subsequent calls to `rswat_open` will return the newest version.
 rswat()
 #> all requested files loaded
 #> rswat summary
-#> →  simulator: C:/SWAT/SWATPlus/SWATPlusEditor/resources/app.asar.unpacked/static/swat_exe/rev60.5.7_64rel.exe
+#> ○  simulator: not assigned
 #> →  directory: D:/rswat_data/swat/soda_test
 #>    --------- 
 #>  ⤷  file.cio: lists 63 config files in 19 groups 
@@ -461,7 +460,7 @@ to run the simulator and write output to the project directory.
 
 ``` r
 rswat_exec()
-#> SWAT+ simulation finished in 3.31 seconds
+#> SWAT+ simulation finished in 3.44 seconds
 #> 7 log and 64 output and 10 unknown files were written
 #> # A tibble: 81 × 2
 #>    file             type  

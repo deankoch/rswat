@@ -94,7 +94,29 @@ This can be filtered using a number of different criteria (read more about this 
 rswat_files('climate')
 ```
 
+## Open config files
 
+To open a file, pass the file name to `rswat_open`. For example, the 'time.sim' file controls the time period of simulations, and consists of a single, one-line table. `rswat_open` returns it as a single data frame
+
+```{r open-time}
+rswat_open('time.sim') |> str()
+```
+
+Most SWAT+ config files have this very simple single-table structure. The few multi-table exceptions, such as `print.prt`, are returned as a list of data frames. For example this code prints the first two tables
+
+```{r open-print}
+rswat_open('print.prt') |> head(2)
+```
+
+## Open output files
+
+Outputs are tabular so they can be browsed the same way as config files, using `rswat_files` and `rswat_open`. For example, the yearly water balance file in our example looks like this
+
+```{r simulate-result-pre}
+rswat_open('basin_wb_yr.txt') |> rswat_date_conversion() |> dplyr::tibble()
+```
+
+`dplyr::tibble` is useful for printing these results in R, as the output tables are often very long (for daily outputs at least) and too wide to print without wrapping. `rswat_date_conversion` translates the Julian date columns to an R Date column. 
 
 ## Search
 
@@ -140,31 +162,7 @@ rswat_docs('evapotranspiration', defs=TRUE)
 
 # Editing
 
-So far we have only explored the structure of an existing project. But the real power of rswat is in allowing R users to edit projects by easily reading and modifying the parameters in the SWAT+ config files on disk. rswat makes this simple and intuitive for R users by representing all config files as data frames 
-
-## Open config files
-
-To open a file, pass the file name to `rswat_open`. For example, the 'time.sim' file controls the time period of simulations, and consists of a single, one-line table. `rswat_open` returns it as a single data frame
-
-```{r open-time}
-rswat_open('time.sim') |> str()
-```
-
-Most SWAT+ config files have this very simple single-table structure. The few multi-table exceptions, such as `print.prt`, are returned as a list of data frames. For example this code prints the first two tables
-
-```{r open-print}
-rswat_open('print.prt') |> head(2)
-```
-
-## Open output files
-
-Outputs are tabular so they can be browsed the same way as config files, using `rswat_files` and `rswat_open`. For example, the yearly water balance file in our example looks like this
-
-```{r simulate-result-pre}
-rswat_open('basin_wb_yr.txt') |> rswat_date_conversion() |> dplyr::tibble()
-```
-
-`dplyr::tibble` is useful for printing these results in R, as the output tables are often very long (for daily outputs at least) and too wide to print without wrapping. `rswat_date_conversion` translates the Julian date columns to an R Date column. 
+So far we have only browsed the files for an existing project. The real power of rswat is in allowing R users to easily modifying the parameters in the SWAT+ config files on disk. rswat makes this more intuitive for R users by representing all config files as data frames 
 
 ## Modify parameters
 
