@@ -16,18 +16,18 @@ knitr::opts_chunk$set(
 
 An R package for SWAT+ input/output file management
 
-`rswat` edits and runs SWAT+ models. See our other project [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an R-based workflow to build QSWAT+ projects and turn them into a SWAT+ models.
+rswat edits and runs SWAT+ models. See our other project [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an R-based workflow to build QSWAT+ projects and turn them into a SWAT+ models.
 
 <!-- badges: start -->
 <!-- badges: end -->
 
 ## Workflow
 
-`rswat` uses R data frames to represent SWAT+ the parameter tables on disk. Users can explore existing projecst, execute simulations, train models, and view the results, all from within the R-environment. 
+rswat uses R data frames to represent SWAT+ the parameter tables on disk. Users can explore existing projects, execute simulations, train models, and view the results, all from within the R-environment. 
 
 ## Example
 
-Check out our [Introduction article](https://github.com/deankoch/rswat/blob/main/vignettes/articles/rswat_intro.md) for quick tour of the major features in `rswat`
+Check out our [Introduction article](https://github.com/deankoch/rswat/blob/main/vignettes/articles/rswat_intro.md) for quick tour of the major features in rswat
 
 ```{r soda, echo=FALSE, fig.align='center', fig.show='hold', fig.dim=c(6, 6)}
 knitr::include_graphics('vignettes/articles/rswat_intro_files/figure-gfm/source-project-1.png')

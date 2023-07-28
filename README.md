@@ -5,7 +5,7 @@
 
 An R package for SWAT+ input/output file management
 
-`rswat` edits and runs SWAT+ models. See our other project
+rswat edits and runs SWAT+ models. See our other project
 [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an R-based
 workflow to build QSWAT+ projects and turn them into a SWAT+ models.
 
@@ -14,15 +14,15 @@ workflow to build QSWAT+ projects and turn them into a SWAT+ models.
 
 ## Workflow
 
-`rswat` uses R data frames to represent SWAT+ the parameter tables on
-disk. Users can explore existing projecst, execute simulations, train
+rswat uses R data frames to represent SWAT+ the parameter tables on
+disk. Users can explore existing projects, execute simulations, train
 models, and view the results, all from within the R-environment.
 
 ## Example
 
 Check out our [Introduction
 article](https://github.com/deankoch/rswat/blob/main/vignettes/articles/rswat_intro.md)
-for quick tour of the major features in `rswat`
+for quick tour of the major features in rswat
 
 <img src="vignettes/articles/rswat_intro_files/figure-gfm/source-project-1.png" width="100%" style="display: block; margin: auto;" />
 
