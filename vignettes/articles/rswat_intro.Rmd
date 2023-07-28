@@ -61,9 +61,9 @@ basename(dest_dir)
 txt_dir |> rswat_restore(dest_dir, overwrite=TRUE) |> head()
 ```
 
-## Initialize
+## Open a project
 
-Load any SWAT+ project by passing its path to `rswat`. The code below loads the copy we just created 
+Open any SWAT+ project by passing its path to `rswat`. The code below loads the copy we just created 
 
 ```{r intro-initialize-1}
 rswat(swat_dir=dest_dir, quiet=TRUE)
