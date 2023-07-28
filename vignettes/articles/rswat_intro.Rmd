@@ -48,9 +48,9 @@ swat_path = soda_qswat[['simulator_dir']] |>
 
 # Getting started
 
-Users will need a pre-existing SWAT+ project directory. This is a collection of several dozen plaintext config files, usually in a directory called "TxtInOut" created by QSWAT+ and SWAT+ Editor. Check out [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an R-based alternative.
+Users will need a pre-existing SWAT+ project directory. This is a collection of dozens to hundreds of plaintext config files, usually in a directory called "TxtInOut" created by QSWAT+ and SWAT+ Editor. Check out [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an R-based workflow to run these programs in batch mode.
 
-It can be hard to track changes with so many files, so we recommend always working with backups, and provide helper functions  `rswat_backup` and `rswat_restore` to make this easier. For this demonstration we will start by making a copy of our project directory (with path `txt_dir`) in a temporary location (`dest_dir`) by passing their paths to `rswat_restore` 
+It can be hard to track changes with so many files so we recommend always working with backups, and include helper functions `rswat_backup` and `rswat_restore` to make this easier. For the Soda Butte example we will start by making a copy of our project directory (with path `txt_dir`) in a temporary location (`dest_dir`) by passing their paths to `rswat_restore` 
 
 ```{r source-copy}
 # the source and destination directory names
@@ -61,17 +61,14 @@ basename(dest_dir)
 txt_dir |> rswat_restore(dest_dir, overwrite=TRUE) |> head()
 ```
 
+## Initialize
+
 Load any SWAT+ project by passing its path to `rswat`. The code below loads the copy we just created 
 
 ```{r intro-initialize-1}
 rswat(swat_dir=dest_dir, quiet=TRUE)
 ```
-Here we have set `quiet` to disable the progress bar, which doesn't render well in markdown.
-
-
-# Exploring SWAT+
-
-Get a summary of the project at any time by calling `rswat` without arguments
+Here we have set `quiet` to disable the progress bar, which doesn't render well in markdown. Call `rswat` again without arguments to get a summary of the project
 
 ```{r intro-initialize-2}
 rswat()
@@ -79,9 +76,11 @@ rswat()
 
 The "all requested files loaded" here refers to optional arguments `include` and `exclude` whose default settings skip loading certain large files, like weather inputs, until they are needed. Read more about this in `?rswat`. 
 
+# Exploring SWAT+
+
 ## File index
 
-Get a list of all files in your SWAT+ project (loaded or not) using `rswat_files`
+Get a list of all files in your SWAT+ project, loaded or not, using `rswat_files`
 
 ```{r intro-files-1}
 rswat_files()
@@ -113,7 +112,7 @@ We can see that this variable is stored in the file 'codes.bsn'. Pass a file nam
 rswat_find(pattern='codes.bsn')
 ```
  
-By default `rswat_find` will attempt to match all results to definitions (the `desc` field) from the SWAT+ inputs documentation PDF. As there is some uncertainty in matching old and new names automatically to text scraped from a PDF, a (three-star) match confidence ranking is reported by `rswat_find` along with any aliases. When `alias` is an empty string it means the function has found an exact match, and the definition is very likely to be correct.
+By default `rswat_find` will attempt to match all results to definitions (the `desc` field) from the SWAT+ inputs documentation PDF. As there is some uncertainty in matching old and new names automatically to text scraped from a PDF, a three-star match confidence ranking is reported by `rswat_find` along with any aliases. When `alias` is an empty string it means the function has found an exact match, and the definition is very likely to be correct.
 
 ## Documentation
 
@@ -129,9 +128,9 @@ Variable names can also be searched in `rswat_docs`. For example the pattern 'IP
 rswat_docs('IPET')
 ```
 
-Our example is not an "LTE"-type project, so we don't have 'hru-lte.hru' in our project directory. `rswat_docs` will find the match but `rswat_find` (which searches only loaded files) will not.
+Our example is not an "LTE"-type project, so we don't have 'hru-lte.hru' in our project directory. `rswat_docs` will find the match but `rswat_find`, which searches only loaded files, will not.
 
-Those who are new to SWAT+ (or have trouble remembering its many variable names) can also search definition text for matches to keywords by setting `defs=TRUE`. For example, the search pattern 'evapotranspiration' turns up both of the IPET-type parameters, along with a few other results for related processes
+Those who are new to SWAT+,or have trouble remembering its many variable names, can also search definition text for matches to keywords by setting `defs=TRUE`. For example, the search pattern 'evapotranspiration' turns up both of the IPET-type parameters, along with a few other results for related processes
 ```{r intro-docs-3}
 rswat_docs('evapotranspiration', defs=TRUE)
 ```
@@ -164,7 +163,7 @@ Outputs are tabular so they can be browsed the same way as config files, using `
 rswat_open('basin_wb_yr.txt') |> rswat_date_conversion() |> dplyr::tibble()
 ```
 
-`dplyr::tibble` is useful for printing these results in R, as the output tables are often very long (for daily outputs) and too wide to print without wrapping. `rswat_date_conversion` translates the Julian date columns to an R Date column. 
+`dplyr::tibble` is useful for printing these results in R, as the output tables are often very long (for daily outputs at least) and too wide to print without wrapping. `rswat_date_conversion` translates the Julian date columns to an R Date column. 
 
 ## Modify parameters
 
@@ -198,7 +197,7 @@ rswat()
 ```
 Notice the summary shows the updated print range (which now matches 'time.sim').
 
-rswat uses a reference class (R5) internally to keep an up-to-date database of information on the loaded SWAT+ project. This is important as it allows all rswat function to have a common knowledge about the state of the files on disk (without passing big lists around in function calls), and it allows us to more easily implement a cache to speed up text parsing/writing.
+rswat uses a reference class (R5) internally to keep an up-to-date database of information on the loaded SWAT+ project. This is important as it allows all rswat function to have a common knowledge about the state of the files on disk without passing big lists around in function calls, and it allows us to more easily implement a cache to speed up text parsing/writing.
 
 The data frames returned by `rswat_open`, however, are ordinary R data frames with copy-on-modify semantics. This means rswat will not "know" that you have modified a table until you write the change to disk with `rswat_write`.
 

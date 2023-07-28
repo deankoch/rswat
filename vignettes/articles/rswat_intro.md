@@ -5,6 +5,7 @@ July 27, 2023
 
 - [Introduction](#introduction)
 - [Getting started](#getting-started)
+  - [Initialize](#initialize)
 - [Exploring SWAT+](#exploring-swat)
   - [File index](#file-index)
   - [Search](#search)
@@ -33,17 +34,17 @@ Park.
 # Getting started
 
 Users will need a pre-existing SWAT+ project directory. This is a
-collection of several dozen plaintext config files, usually in a
+collection of dozens to hundreds of plaintext config files, usually in a
 directory called “TxtInOut” created by QSWAT+ and SWAT+ Editor. Check
 out [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an
-R-based alternative.
+R-based workflow to run these programs in batch mode.
 
-It can be hard to track changes with so many files, so we recommend
-always working with backups, and provide helper functions `rswat_backup`
-and `rswat_restore` to make this easier. For this demonstration we will
-start by making a copy of our project directory (with path `txt_dir`) in
-a temporary location (`dest_dir`) by passing their paths to
-`rswat_restore`
+It can be hard to track changes with so many files so we recommend
+always working with backups, and include helper functions `rswat_backup`
+and `rswat_restore` to make this easier. For the Soda Butte example we
+will start by making a copy of our project directory (with path
+`txt_dir`) in a temporary location (`dest_dir`) by passing their paths
+to `rswat_restore`
 
 ``` r
 # the source and destination directory names
@@ -66,6 +67,8 @@ txt_dir |> rswat_restore(dest_dir, overwrite=TRUE) |> head()
 #> 6 aquifer_yr.txt  FALSE       TRUE  TRUE
 ```
 
+## Initialize
+
 Load any SWAT+ project by passing its path to `rswat`. The code below
 loads the copy we just created
 
@@ -74,18 +77,14 @@ rswat(swat_dir=dest_dir, quiet=TRUE)
 ```
 
 Here we have set `quiet` to disable the progress bar, which doesn’t
-render well in markdown.
-
-# Exploring SWAT+
-
-Get a summary of the project at any time by calling `rswat` without
-arguments
+render well in markdown. Call `rswat` again without arguments to get a
+summary of the project
 
 ``` r
 rswat()
 #> all requested files loaded
 #> rswat summary
-#> ○  simulator: not assigned
+#> →  simulator: C:/SWAT/SWATPlus/SWATPlusEditor/resources/app.asar.unpacked/static/swat_exe/rev60.5.7_64rel.exe
 #> →  directory: D:/rswat_data/swat/soda_test
 #>    --------- 
 #>  ⤷  file.cio: lists 63 config files in 19 groups 
@@ -93,7 +92,7 @@ rswat()
 #>        ⤷ wgn: simulating none
 #>        ○ sta: pcp, tmp, slr, hmd, wnd (none loaded) 
 #>  ⤷  time.sim: [ 2022-07-28 to 2023-07-28 ]
-#>  ⤷ print.prt: [ 2023-07-28 to 2023-07-28 ]
+#>  ⤷ print.prt: [ 2022-07-28 to 2023-07-28 ]
 #>    ⤷   daily: none
 #>    ⤷ monthly: none
 #>    ⤷  yearly: all
@@ -105,9 +104,11 @@ The “all requested files loaded” here refers to optional arguments
 large files, like weather inputs, until they are needed. Read more about
 this in `?rswat`.
 
+# Exploring SWAT+
+
 ## File index
 
-Get a list of all files in your SWAT+ project (loaded or not) using
+Get a list of all files in your SWAT+ project, loaded or not, using
 `rswat_files`
 
 ``` r
@@ -116,16 +117,16 @@ rswat_files()
 #> # A tibble: 222 × 10
 #>    file           group      type   n_line n_var n_table        size modified            known loaded
 #>    <chr>          <chr>      <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 14:05:26 TRUE  TRUE  
-#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 14:05:26 TRUE  TRUE  
-#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 14:05:26 TRUE  TRUE  
-#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 14:05:26 TRUE  TRUE  
-#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 14:05:26 TRUE  TRUE  
-#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 14:05:26 TRUE  TRUE  
-#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 14:05:26 TRUE  TRUE  
-#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 14:05:26 TRUE  TRUE  
-#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 14:05:26 TRUE  TRUE  
-#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 14:05:26 TRUE  TRUE  
+#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 14:15:08 TRUE  TRUE  
+#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 14:15:09 TRUE  TRUE  
+#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 14:15:09 TRUE  TRUE  
+#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 14:15:09 TRUE  TRUE  
+#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 14:15:08 TRUE  TRUE  
+#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 14:15:09 TRUE  TRUE  
+#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 14:15:08 TRUE  TRUE  
+#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 14:15:09 TRUE  TRUE  
+#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 14:15:09 TRUE  TRUE  
+#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 14:15:09 TRUE  TRUE  
 #> # ℹ 212 more rows
 ```
 
@@ -138,13 +139,13 @@ rswat_files('climate')
 #> # A tibble: 7 × 10
 #>   file            group   type   n_line n_var n_table        size modified            known loaded
 #>   <chr>           <chr>   <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 14:05:26 TRUE  TRUE  
-#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 14:05:26 TRUE  TRUE  
-#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 14:05:26 TRUE  TRUE  
-#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 14:05:26 TRUE  TRUE  
-#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 14:05:26 TRUE  TRUE  
-#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 14:05:26 TRUE  TRUE  
-#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 14:05:26 TRUE  TRUE
+#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 14:15:08 TRUE  TRUE  
+#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 14:15:09 TRUE  TRUE  
+#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 14:15:09 TRUE  TRUE  
+#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 14:15:09 TRUE  TRUE  
+#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 14:15:09 TRUE  TRUE  
+#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 14:15:09 TRUE  TRUE  
+#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 14:15:09 TRUE  TRUE
 ```
 
 ## Search
@@ -160,7 +161,7 @@ However, with `fuzzy=2` we find the new name, plus one false positive
 
 ``` r
 rswat_find(pattern='IPET', fuzzy=2)
-#> 2 result(s) for "IPET" in 2 file(s) (searched 61)
+#> 2 result(s) for "IPET" in 2 file(s) (searched 62)
 #> looking up definitions...
 #> # A tibble: 2 × 8
 #>   file        group   table class     name  alias        match desc                                        
@@ -197,10 +198,10 @@ rswat_find(pattern='codes.bsn')
 By default `rswat_find` will attempt to match all results to definitions
 (the `desc` field) from the SWAT+ inputs documentation PDF. As there is
 some uncertainty in matching old and new names automatically to text
-scraped from a PDF, a (three-star) match confidence ranking is reported
-by `rswat_find` along with any aliases. When `alias` is an empty string
-it means the function has found an exact match, and the definition is
-very likely to be correct.
+scraped from a PDF, a three-star match confidence ranking is reported by
+`rswat_find` along with any aliases. When `alias` is an empty string it
+means the function has found an exact match, and the definition is very
+likely to be correct.
 
 ## Documentation
 
@@ -244,11 +245,11 @@ rswat_docs('IPET')
 
 Our example is not an “LTE”-type project, so we don’t have ‘hru-lte.hru’
 in our project directory. `rswat_docs` will find the match but
-`rswat_find` (which searches only loaded files) will not.
+`rswat_find`, which searches only loaded files, will not.
 
-Those who are new to SWAT+ (or have trouble remembering its many
-variable names) can also search definition text for matches to keywords
-by setting `defs=TRUE`. For example, the search pattern
+Those who are new to SWAT+,or have trouble remembering its many variable
+names, can also search definition text for matches to keywords by
+setting `defs=TRUE`. For example, the search pattern
 ‘evapotranspiration’ turns up both of the IPET-type parameters, along
 with a few other results for related processes
 
@@ -329,9 +330,9 @@ rswat_open('basin_wb_yr.txt') |> rswat_date_conversion() |> dplyr::tibble()
 ```
 
 `dplyr::tibble` is useful for printing these results in R, as the output
-tables are often very long (for daily outputs) and too wide to print
-without wrapping. `rswat_date_conversion` translates the Julian date
-columns to an R Date column.
+tables are often very long (for daily outputs at least) and too wide to
+print without wrapping. `rswat_date_conversion` translates the Julian
+date columns to an R Date column.
 
 ## Modify parameters
 
@@ -387,7 +388,7 @@ subsequent calls to `rswat_open` will return the newest version.
 rswat()
 #> all requested files loaded
 #> rswat summary
-#> ○  simulator: not assigned
+#> →  simulator: C:/SWAT/SWATPlus/SWATPlusEditor/resources/app.asar.unpacked/static/swat_exe/rev60.5.7_64rel.exe
 #> →  directory: D:/rswat_data/swat/soda_test
 #>    --------- 
 #>  ⤷  file.cio: lists 63 config files in 19 groups 
@@ -408,8 +409,8 @@ Notice the summary shows the updated print range (which now matches
 rswat uses a reference class (R5) internally to keep an up-to-date
 database of information on the loaded SWAT+ project. This is important
 as it allows all rswat function to have a common knowledge about the
-state of the files on disk (without passing big lists around in function
-calls), and it allows us to more easily implement a cache to speed up
+state of the files on disk without passing big lists around in function
+calls, and it allows us to more easily implement a cache to speed up
 text parsing/writing.
 
 The data frames returned by `rswat_open`, however, are ordinary R data
@@ -454,7 +455,7 @@ to run the simulator and write output to the project directory.
 
 ``` r
 rswat_exec()
-#> SWAT+ simulation finished in 3.56 seconds
+#> SWAT+ simulation finished in 3.36 seconds
 #> 7 log and 64 output and 10 unknown files were written
 #> # A tibble: 81 × 2
 #>    file             type  
