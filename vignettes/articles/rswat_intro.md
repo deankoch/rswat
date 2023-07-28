@@ -4,11 +4,11 @@ Dean Koch
 July 27, 2023
 
 - [Introduction](#introduction)
-  - [Getting started](#getting-started)
-  - [Exploring SWAT+](#exploring-swat)
-    - [File index](#file-index)
-    - [Search](#search)
-    - [Documentation](#documentation)
+- [Getting started](#getting-started)
+- [Exploring SWAT+](#exploring-swat)
+  - [File index](#file-index)
+  - [Search](#search)
+  - [Documentation](#documentation)
 - [Editing](#editing)
   - [Open a file](#open-a-file)
   - [Modify parameters](#modify-parameters)
@@ -18,29 +18,40 @@ July 27, 2023
 # Introduction
 
 This article explains how to use rswat to explore and manage a SWAT+
-project. It picks up where the [Lamar
-River](https://github.com/deankoch/rswat.maker/blob/master/vignettes/articles/lamar.md)
-tutorial from [`rswat.maker`](https://github.com/deankoch/rswat.maker)
-left off, showing how rswat can be used to carry out simulations and
-calibrate a SWAT+ model. Our example is a small headwater catchment of
-Soda Butte Creek, near the Silver Gate YNP boundary.
+project. It picks up where the [Lamar River
+tutorial](https://github.com/deankoch/rswat.maker/blob/master/vignettes/articles/lamar.md)
+from [`rswat.maker`](https://github.com/deankoch/rswat.maker) left off,
+by showing how to edit parameters and carry out simulations.
+
+Our example code is for the small headwater catchment of Soda Butte
+Creek, near the Silver Gate boundary in the northeast corner of
+Yellowstone National Park.
 
 <img src="rswat_intro_files/figure-gfm/source-project-1.png" style="display: block; margin: auto;" />
 
-## Getting started
+# Getting started
 
-Users will need an existing SWAT+ project. This is a directory, usually
-called “TxtInOut”, with several dozen plaintext config files. It can be
-hard to track changes with so many files, so we recommend always working
-with backups, and provide helper functions `rswat_backup` and
-`rswat_restore` to make this easier. Pass `rswat_restore` a source
-directory (`txt_dir`) to make a copy in a new directory (`dest_dir`).
+Users will need an existing SWAT+ project directory. This is a
+collection of several dozen plaintext config files, usually in a
+directory called “TxtInOut” created by QSWAT+ and SWAT+ Editor. Check
+out [`rswat.maker`](https://github.com/deankoch/rswat.maker) for an
+R-based alternative.
+
+It can be hard to track changes with so many files, so we recommend
+always working with backups, and provide helper functions `rswat_backup`
+and `rswat_restore` to make this easier. For this demonstration we will
+start by making a copy of our project directory (with path `txt_dir`) in
+a temporary location (`dest_dir`) by passing their paths to
+`rswat_restore`
 
 ``` r
+# the source and destination directory names
 basename(txt_dir)
 #> [1] "TxtInOut"
 basename(dest_dir)
 #> [1] "soda_test"
+
+# make the copy
 txt_dir |> rswat_restore(dest_dir, overwrite=TRUE) |> head()
 #> copying 222 file(s)
 #> # A tibble: 6 × 4
@@ -55,20 +66,20 @@ txt_dir |> rswat_restore(dest_dir, overwrite=TRUE) |> head()
 ```
 
 Load any SWAT+ project by passing its path to `rswat`. The code below
-loads the copy created above.
+loads the copy we just created
 
 ``` r
-rswat(dest_dir, quiet=TRUE, exe_path=swat_path)
+rswat(swat_dir=dest_dir, quiet=TRUE, exe_path=swat_path)
 ```
 
-In this example we set `quiet=TRUE` to disable a progress bar (which
-doesn’t render well in markdown) and point `exe_path` to our local copy
-of the SWAT+ simulator, for later use.
+Here we have set two optional arguments: `quiet` to disable the progress
+bar (which doesn’t render well in markdown); and`exe_path` to point to
+our local copy of the simulator (for later use).
 
-## Exploring SWAT+
+# Exploring SWAT+
 
-Once the project directory is assigned, subsequent calls to `rswat` with
-default arguments print summary information about the project.
+Get a summary of the project at any time by calling `rswat` without
+arguments
 
 ``` r
 rswat()
@@ -85,11 +96,13 @@ rswat()
 #> !  print.prt: invalid dates! Check them with rswat_open("print.prt")
 ```
 
-The “all requested files loaded” refers to arguments `include` and
-`exclude` whose default settings skip loading certain large files, like
-weather inputs, until they are needed. Read more about this in `?rswat`.
+The “all requested files loaded” here refers to optional arguments
+`include` and `exclude` whose default settings skip loading certain
+large files, like weather inputs, until they are needed. Read more about
+this in `?rswat`. The warning at the end about dates is explained below,
+in the [Editing](Editing) section.
 
-### File index
+## File index
 
 Get a list of all files in your SWAT+ project (loaded or not) using
 `rswat_files`
@@ -100,21 +113,21 @@ rswat_files()
 #> # A tibble: 222 × 10
 #>    file           group      type   n_line n_var n_table        size modified            known loaded
 #>    <chr>          <chr>      <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-27 19:20:14 TRUE  TRUE  
-#>  2 object.cnt     simulation config      1    21       1       0.674 2023-07-27 19:20:14 TRUE  TRUE  
-#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-27 19:20:14 TRUE  TRUE  
-#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-27 19:20:14 TRUE  TRUE  
-#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-27 19:20:14 TRUE  TRUE  
-#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-27 19:20:14 TRUE  TRUE  
-#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-27 19:20:14 TRUE  TRUE  
-#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-27 19:20:14 TRUE  TRUE  
-#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-27 19:20:14 TRUE  TRUE  
-#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-27 19:20:14 TRUE  TRUE  
+#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 00:30:19 TRUE  TRUE  
+#>  2 object.cnt     simulation config      1    21       1       0.674 2023-07-28 00:30:19 TRUE  TRUE  
+#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 00:30:19 TRUE  TRUE  
+#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 00:30:19 TRUE  TRUE  
+#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 00:30:19 TRUE  TRUE  
+#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 00:30:19 TRUE  TRUE  
+#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 00:30:19 TRUE  TRUE  
+#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 00:30:19 TRUE  TRUE  
+#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 00:30:19 TRUE  TRUE  
+#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 00:30:19 TRUE  TRUE  
 #> # ℹ 212 more rows
 ```
 
-This can be filtered using a number of categories (read more about this
-in `?rswat_files`)
+This can be filtered using a number of different criteria (read more
+about this in `?rswat_files`)
 
 ``` r
 rswat_files('climate')
@@ -122,26 +135,25 @@ rswat_files('climate')
 #> # A tibble: 7 × 10
 #>   file            group   type   n_line n_var n_table        size modified            known loaded
 #>   <chr>           <chr>   <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-27 19:20:14 TRUE  TRUE  
-#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-27 19:20:14 TRUE  TRUE  
-#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-27 19:20:14 TRUE  TRUE  
-#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-27 19:20:14 TRUE  TRUE  
-#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-27 19:20:14 TRUE  TRUE  
-#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-27 19:20:14 TRUE  TRUE  
-#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-27 19:20:14 TRUE  TRUE
+#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 00:30:19 TRUE  TRUE  
+#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 00:30:19 TRUE  TRUE  
+#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 00:30:19 TRUE  TRUE  
+#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 00:30:19 TRUE  TRUE  
+#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 00:30:19 TRUE  TRUE  
+#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 00:30:19 TRUE  TRUE  
+#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 00:30:19 TRUE  TRUE
 ```
 
-### Search
+## Search
 
 Once a file has been loaded, it becomes searchable with `rswat_find`.
 This supports fuzzy matching to variable names, to help with typos and
 names that have changed over time.
 
-For example the method for modelling potential evapotranspiration (PET),
-formally called ‘IPET’ in SWAT2012, is now called ‘pet’. Searching for
-the old name turns up no exact matches. However users can cast a wider
-net by increasing `fuzzy` (see `?rswat_find` to learn more). With
-`fuzzy=2` we find the new name, plus one false positive
+For example the potential evapotranspiration (PET) model flag, formally
+called ‘IPET’ in SWAT2012, is now called ‘pet’. Searching for the old
+name turns up no exact or substring matches (the default search mode).
+However, with `fuzzy=2` we find the new name, plus one false positive
 
 ``` r
 rswat_find(pattern='IPET', fuzzy=2)
@@ -154,8 +166,9 @@ rswat_find(pattern='IPET', fuzzy=2)
 #> 2 initial.cha channel     1 character pest  "pesticides" *     Pesticides initialization in channel (point…
 ```
 
-Repeating the call with `fuzzy=1` produces the unique result ‘pet’. We
-can see that this variable is stored in the file ‘codes.bsn’. Pass a
+Repeating the call with `fuzzy=1` produces the unique result ‘pet’.
+
+We can see that this variable is stored in the file ‘codes.bsn’. Pass a
 file name in `pattern` to report on all the variables in the file
 
 ``` r
@@ -182,17 +195,17 @@ By default `rswat_find` will attempt to match all results to definitions
 (the `desc` field) from the SWAT+ inputs documentation PDF. As there is
 some uncertainty in matching old and new names automatically to text
 scraped from a PDF, a (three-star) match confidence ranking is reported
-by `rswat_find` along with any aliases. When alias is an empty string
-the function has found an exact match, and the definition is very likely
-to be correct.
+by `rswat_find` along with any aliases. When `alias` is an empty string
+it means the function has found an exact match, and the definition is
+very likely to be correct.
 
-### Documentation
+## Documentation
 
 `rswat` includes a plaintext copy of the SWAT+ documentation PDF to make
-it more accessible in the R environment. Call `rswat_docs` to get
+it easy to access in an R environment. Call `rswat_docs` to get a
 `tibble` of results for a search query. Searching for a file name will
-usually pull up a full definitions list, along with information about
-where in the PDF this text can be found.
+usually pull up a full definitions list, along with some information
+about where in the PDF this text can be found.
 
 ``` r
 rswat_docs('codes.bsn')
@@ -213,9 +226,9 @@ rswat_docs('codes.bsn')
 #> # ℹ 14 more rows
 ```
 
-Variable names definitions can also be searched directly in
-`rswat_docs`. For example searching again for ‘IPET’ turns another name
-and location: ‘ipet’ in the ‘hru-lte.hru’ file.
+Variable names can also be searched directly in `rswat_docs`. For
+example searching again for ‘IPET’ turns up another name and location:
+‘ipet’ in the ‘hru-lte.hru’ file.
 
 ``` r
 rswat_docs('IPET')
@@ -226,23 +239,23 @@ rswat_docs('IPET')
 #> 1    88    19 hru-lte.hru ipet  Potential evapotranspiration (PET) method (character): ‘harg’ = Hargreaves…
 ```
 
-Our example is not an “LTE”-type project, so don’t have ‘hru-lte.hru’ in
-our project directory. `rswat_docs` will find the match, but
+Our example is not an “LTE”-type project, so we don’t have ‘hru-lte.hru’
+in our project directory. `rswat_docs` will find the match but
 `rswat_find` (which searches only loaded files) will not.
 
 # Editing
 
-So far we have only browsed an existing project. The real power of
-`rswat` is in allowing R users to directly modify SWAT+ config files on
-disk, changing the parameters that are passed into the simulator.
-Editing parameters with `rswat` should feel very natural to R users,
-because `rswat` represents the all config files as data frames.
+So far we have only browsed an existing project. But the real power of
+rswat is in allowing R users to edit projects by modifying the
+parameters in the SWAT+ config files on disk. The package makes this
+simple and intuitive for R users by representing all config files as
+data frames
 
 ## Open a file
 
-To open a file as a data frame, pass the file name to `rswat_open`. For
-example, the ‘time.sim’ file controls the time period of simulations,
-and consists of a single, one-line table
+To open a file, pass the file name to `rswat_open`. For example, the
+‘time.sim’ file controls the time period of simulations, and consists of
+a single, one-line table. `rswat_open` returns it as a single data frame
 
 ``` r
 rswat_open('time.sim') |> str()
@@ -274,29 +287,31 @@ rswat_open('print.prt') |> head(2)
 
 ## Modify parameters
 
-The ‘print.prt’ file a good place to start, since our `rswat()` call at
-the beginning warned of malformed dates. In the output above we can see
-that no start/end dates were specified for the simulator *print*out.
+The ‘print.prt’ file is a good place to start the editing section, given
+that our `rswat()` call at the beginning warned us it had malformed
+dates. This file controls which time period to print to the output
+files, and in the output above we can see that there are zeros in place
+of start/end dates.
 
-To change a parameter, simply get the data frame `rswat_open`, change
-its values, and pass it back to `rswat_write`. In this example we will
-extend the simulation period in ‘time.sim’, then set the dates in
-‘print.prt’ to match.
+To change a parameter, get a copy of its data frame with `rswat_open`,
+change its value, and pass the data frame back to `rswat_write`. Here we
+will extend the simulation period in ‘time.sim’ by a year, then set the
+dates in ‘print.prt’ to match
 
 ``` r
-# prepare to copy from time.sim to first table of print.prt
+# copy the relevant tables
 sim = rswat_open('time.sim')
 prt = rswat_open('print.prt')[[1]]
 
 # assign new values
 nm_copy = c('day_start', 'yrc_start', 'day_end', 'yrc_end')
-sim['yrc_start'] = sim['yrc_start'] - 2L
+sim['yrc_start'] = sim['yrc_start'] - 1L
 prt[nm_copy] = sim[nm_copy]
 ```
 
-Pass this modified data frame to `rswat_write` without setting
-`overwrite` to get a list of pending changes. Set `overwrite=TRUE` to
-change the file on disk.
+Pass this modified data frame to `rswat_write` with default
+`overwrite=FALSE` to get a list of pending changes. Set `overwrite=TRUE`
+to commit the changes to the file.
 
 ``` r
 sim |> rswat_write(overwrite=TRUE)
@@ -305,7 +320,7 @@ sim |> rswat_write(overwrite=TRUE)
 #> # A tibble: 1 × 7
 #>   file     name      table line_num field_num value replacement
 #>   <chr>    <chr>     <dbl>    <int>     <int> <chr> <chr>      
-#> 1 time.sim yrc_start     1        3         2 2023  2021
+#> 1 time.sim yrc_start     1        3         2 2023  2022
 prt |> rswat_write(overwrite=TRUE)
 #> 4 field(s) modified in print.prt
 #> writing changes to D:/rswat_data/swat/soda_test/print.prt
@@ -313,7 +328,7 @@ prt |> rswat_write(overwrite=TRUE)
 #>   file      name      table line_num field_num value replacement
 #>   <chr>     <chr>     <dbl>    <int>     <int> <chr> <chr>      
 #> 1 print.prt day_start     1        3         2 0     197        
-#> 2 print.prt yrc_start     1        3         3 0     2021       
+#> 2 print.prt yrc_start     1        3         3 0     2022       
 #> 3 print.prt day_end       1        3         4 0     204        
 #> 4 print.prt yrc_end       1        3         5 0     2023
 ```
@@ -322,6 +337,7 @@ prt |> rswat_write(overwrite=TRUE)
 
 Changes written with `rswat_write` will persist in the files on disk,
 and in subsequent calls `rswat_open` will return the newest version.
+`rswat()` calls will also reflect the current state on disk
 
 ``` r
 rswat()
@@ -334,36 +350,48 @@ rswat()
 #>    ⤷ climate: 15 stations in weather-sta.cli
 #>        ⤷ wgn: simulating none
 #>        ○ sta: pcp, tmp, slr, hmd, wnd (none loaded) 
-#>  ⤷  time.sim: [ 2021-07-16 to 2023-07-23 ]
-#>  ⤷ print.prt: [ 2022-07-16 to 2023-07-23 ]
+#>  ⤷  time.sim: [ 2022-07-16 to 2023-07-23 ]
+#>  ⤷ print.prt: [ 2023-07-16 to 2023-07-23 ]
 #>    ⤷   daily: none
 #>    ⤷ monthly: none
 #>    ⤷  yearly: all
 #>    ⤷   avann: all
 ```
 
-Notice the printout date range shows the updated values instead of the
-warning we saw earlier
+Notice the printout date range now shows the updated values instead of
+the warning we saw earlier.
+
+rswat uses a reference class (R5) internally to keep an up-to-date
+database of information on the loaded SWAT+ project. This is important
+as it allows all rswat function to have a common knowledge about the
+state of the files on disk (without passing big lists around in function
+calls), and it allows us to more easily implement a cache to speed up
+text parsing/writing.
+
+The data frames returned by `rswat_open`, however, are ordinary R data
+frames with copy-on-modify semantics. This means rswat will not “know”
+that you have modified a table until you write the change to disk with
+`rswat_write`.
 
 # Simulations
 
-To run simulations rswat uses `shell` to call the simulator executable.
-We already set its path, in our first call to `rswat`, so we are ready
-to go. Note that this doesn’t need to be assigned for most of the
-package functions to work, so rswat should still function as an editor
-without a working SWAT+ installation.
+For running simulations, rswat uses `shell` to call the simulator
+executable. We already set its path in our first call to `rswat`, so we
+are ready to go. Most of the package functions will work without setting
+this path, which means rswat still functions as an editor without a
+working SWAT+ installation.
 
 In the latest release the simulator file for Windows is called
 ‘rev60.5.7_64rel.exe’ and it can be found in the
 ‘SWAT/SWATPlus/SWATPlusEditor’ directory tree. Standalone versions can
-also be downloaded if you are unsure which executable to use.
+also be downloaded.
 
 Once the path is set, call `rswat_exec()` to run the simulator and write
 output to your project directory.
 
 ``` r
 rswat_exec()
-#> SWAT+ simulation finished in 7.54 seconds
+#> SWAT+ simulation finished in 3.89 seconds
 #> 7 log and 64 output and 10 unknown files were written
 #> # A tibble: 81 × 2
 #>    file             type  
@@ -382,18 +410,15 @@ rswat_exec()
 ```
 
 The function returns a list of output files written when it finishes.
-Outputs an be viewed the same way as config files, using `rswat_files`
-and `rswat_open` (but not `rswat_write`). `dplyr::tibble` is useful here
-for printing the result in R, as these output tables can wide and very
-long.
+Outputs are tabular, so they can be browsed the same way as config
+files, using `rswat_files` and `rswat_open` (but not `rswat_write`).
 
 ``` r
 rswat_open('basin_wb_yr.txt') |> dplyr::tibble()
-#> # A tibble: 2 × 47
+#> # A tibble: 1 × 47
 #>    jday   mon   day    yr  unit gis_id name       precip snofall snomlt surq_gen  latq wateryld  perc    et
 #>   <int> <int> <int> <int> <int>  <int> <chr>       <dbl>   <dbl>  <dbl>    <dbl> <dbl>    <dbl> <dbl> <dbl>
-#> 1   365    12    31  2022     1      1 Drswat_da…  1183.    613.   615.     80.1  31.2    111.   92.0  362.
-#> 2   204     7    23  2023     1      1 Drswat_da…   731.    422.   533.     79.5  17.9     97.4  53.9  108.
+#> 1   204     7    23  2023     1      1 Drswat_da…   691.    411.   529.     74.0  13.4     87.4  44.2  105.
 #> # ℹ 32 more variables: ecanopy <dbl>, eplant <dbl>, esoil <dbl>, surq_cont <dbl>, cn <dbl>, sw_init <dbl>,
 #> #   sw_final <dbl>, sw_ave <dbl>, sw_300 <dbl>, sno_init <dbl>, sno_final <dbl>, snopack <dbl>, pet <dbl>,
 #> #   qtile <dbl>, irr <dbl>, surq_runon <dbl>, latq_runon <dbl>, overbank <dbl>, surq_cha <dbl>,
@@ -402,19 +427,21 @@ rswat_open('basin_wb_yr.txt') |> dplyr::tibble()
 #> #   wet_out <dbl>
 ```
 
+`dplyr::tibble` is often useful for printing these results in R, as the
+output tables can wide and very long.
+
 We provide a number of helper functions for managing outputs. For
-example to get Date objects instead of Julian date integers, pipe the
-output to `rswat_date_conversion`
+example to get Date objects instead of Julian date integers, pipe an
+output table to `rswat_date_conversion`
 
 ``` r
-# hide most columns for tidyness
+# omit all but first 8 columns and convert dates
 rswat_open('basin_wb_yr.txt')[, seq(8)] |> rswat_date_conversion()
-#>         date unit gis_id             name   precip
-#> 1 2022-12-31    1      1 Drswat_datalamar 1182.762
-#> 2 2023-07-23    1      1 Drswat_datalamar  730.612
+#>         date unit gis_id             name precip
+#> 1 2023-07-23    1      1 Drswat_datalamar 691.38
 ```
 
 `rswat_open`, `rswat_write`, and `rswat_exec` is a powerful combination.
 It allows users to programmatically control virtually all aspects of a
-SWAT+ simulation. In the next vignette we show some examples, by
-calibrating a forecasting model for the Soda Butte from this example.
+SWAT+ simulation. In the next vignette we give a few examples, showing
+how to calibrate a forecasting model for the Soda Butte catchment.
