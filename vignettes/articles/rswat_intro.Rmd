@@ -154,7 +154,7 @@ rswat_docs('IPET')
 
 Our example is not an "LTE"-type project, so we don't have 'hru-lte.hru' in our project directory. `rswat_docs` will find the match but `rswat_find`, which searches only loaded files, will not.
 
-Those who are new to SWAT+,or have trouble remembering its many variable names, can also search definition text for matches to keywords by setting `defs=TRUE`. For example, the search pattern 'evapotranspiration' turns up both of the IPET-type parameters, along with a few other results for related processes
+Those who are new to SWAT+ or have trouble remembering its many variable names can also search definition text for matches to keywords by setting `defs=TRUE`. For example, the search pattern 'evapotranspiration' turns up both of the IPET-type parameters along with a few other results for related processes
 ```{r intro-docs-3}
 rswat_docs('evapotranspiration', defs=TRUE)
 ```
@@ -162,19 +162,19 @@ rswat_docs('evapotranspiration', defs=TRUE)
 
 # Editing
 
-So far we have only browsed the files for an existing project. The real power of rswat is in allowing R users to easily modifying the parameters in the SWAT+ config files on disk. rswat makes this more intuitive for R users by representing all config files as data frames 
+So far we have only browsed the files for an existing project. The real power of rswat is in allowing R users to easily modify the parameters in the SWAT+ config files on disk. rswat makes this more intuitive for R users by representing all config files as data frames 
 
 ## Modify parameters
 
 The 'print.prt' file is a good place to start editing as it controls which time period to print to the output files. The result will be immediately obvious the next time you run a simulation.
 
-In the earlier `rswat()` summary, and in the existing output file above, we can see that the print period is currently set to a single date. This is because 'print.prt' is currently configured for a one year long burn-in period during which the output is muted. The code below shows how to remove this burn-in period via its parameter `nyskip`.
+In the earlier `rswat()` summary, and in the existing output file above, we can see that the print period is currently set to a single date. This is because 'print.prt' is currently configured for a one year long burn-in period during which the output is muted.
 
 ```{r nyskip-docs}
 rswat_find('nyskip')
 ```
 
-To modify a parameter, get a copy of its data frame with `rswat_open`, change its value, and pass the data frame back to `rswat_write`
+To modify a parameter, get a copy of its data frame with `rswat_open`, change its value, and pass the data frame back to `rswat_write`. The code below shows how to remove this burn-in period via its parameter `nyskip`
 
 ```{r modify-print-1}
 # copy the relevant table
@@ -194,11 +194,11 @@ Changes written with `rswat_write` persist in the files on disk, and subsequent 
 ```{r modify-print-result}
 rswat()
 ```
-Notice the summary shows the updated print range (which now matches 'time.sim').
+Notice the summary shows the updated print range for 'print.prt' (now matching 'time.sim').
 
 rswat uses a reference class (R5) internally to keep an up-to-date database of information on the loaded SWAT+ project. This is important as it allows all rswat function to have a common knowledge about the state of the files on disk without passing big lists around in function calls, and it allows us to more easily implement a cache to speed up text parsing/writing.
 
-The data frames returned by `rswat_open`, however, are ordinary R data frames with copy-on-modify semantics. This means rswat will not "know" that you have modified a table until you write the change to disk with `rswat_write`.
+The data frames returned by `rswat_open`, however, are ordinary R data frames with copy-on-modify semantics. This means rswat will ignores modifications to the data frames until you pass them to `rswat_write`, to commit the changes to disk.
 
 # Simulations
 

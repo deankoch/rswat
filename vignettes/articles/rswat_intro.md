@@ -83,7 +83,7 @@ summary of the project
 rswat()
 #> all requested files loaded
 #> rswat summary
-#> ○  simulator: not assigned
+#> →  simulator: C:/SWAT/SWATPlus/SWATPlusEditor/resources/app.asar.unpacked/static/swat_exe/rev60.5.7_64rel.exe
 #> →  directory: D:/rswat_data/swat/soda_test
 #>    --------- 
 #>  ⤷  file.cio: lists 63 config files in 19 groups 
@@ -91,7 +91,7 @@ rswat()
 #>        ⤷ wgn: simulating none
 #>        ○ sta: pcp, tmp, slr, hmd, wnd (none loaded) 
 #>  ⤷  time.sim: [ 2022-07-28 to 2023-07-28 ]
-#>  ⤷ print.prt: [ 2023-07-28 to 2023-07-28 ]
+#>  ⤷ print.prt: [ 2022-07-28 to 2023-07-28 ]
 #>    ⤷   daily: none
 #>    ⤷ monthly: none
 #>    ⤷  yearly: all
@@ -122,16 +122,16 @@ rswat_files()
 #> # A tibble: 222 × 10
 #>    file           group      type   n_line n_var n_table        size modified            known loaded
 #>    <chr>          <chr>      <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 15:31:49 TRUE  TRUE  
-#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 15:31:50 TRUE  TRUE  
-#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 15:31:50 TRUE  TRUE  
-#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 15:31:50 TRUE  TRUE  
-#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 15:31:49 TRUE  TRUE  
-#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 15:31:50 TRUE  TRUE  
-#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 15:31:49 TRUE  TRUE  
-#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 15:31:50 TRUE  TRUE  
-#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 15:31:50 TRUE  TRUE  
-#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 15:31:50 TRUE  TRUE  
+#>  1 file.cio       cio        config     29    18       1       3.4   2023-07-28 15:35:55 TRUE  TRUE  
+#>  2 object.cnt     simulation config      1    21       1       0.661 2023-07-28 15:35:55 TRUE  TRUE  
+#>  3 print.prt      simulation config     42    19       5       3.39  2023-07-28 15:35:55 TRUE  TRUE  
+#>  4 time.sim       simulation config      1     5       1       0.169 2023-07-28 15:35:55 TRUE  TRUE  
+#>  5 codes.bsn      basin      config      1    24       1       0.598 2023-07-28 15:35:55 TRUE  TRUE  
+#>  6 parameters.bsn basin      config      1    44       1       1.3   2023-07-28 15:35:55 TRUE  TRUE  
+#>  7 hmd.cli        climate    config     15     1       1       0.248 2023-07-28 15:35:55 TRUE  TRUE  
+#>  8 pcp.cli        climate    config     15     1       1       0.259 2023-07-28 15:35:55 TRUE  TRUE  
+#>  9 slr.cli        climate    config     15     1       1       0.291 2023-07-28 15:35:55 TRUE  TRUE  
+#> 10 tmp.cli        climate    config     15     1       1       0.257 2023-07-28 15:35:55 TRUE  TRUE  
 #> # ℹ 212 more rows
 ```
 
@@ -144,13 +144,13 @@ rswat_files('climate')
 #> # A tibble: 7 × 10
 #>   file            group   type   n_line n_var n_table        size modified            known loaded
 #>   <chr>           <chr>   <chr>   <int> <int>   <int> [kilobytes] <dttm>              <lgl> <lgl> 
-#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 15:31:49 TRUE  TRUE  
-#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 15:31:50 TRUE  TRUE  
-#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 15:31:50 TRUE  TRUE  
-#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 15:31:50 TRUE  TRUE  
-#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 15:31:50 TRUE  TRUE  
-#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 15:31:50 TRUE  TRUE  
-#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 15:31:50 TRUE  TRUE
+#> 1 hmd.cli         climate config     15     1       1       0.248 2023-07-28 15:35:55 TRUE  TRUE  
+#> 2 pcp.cli         climate config     15     1       1       0.259 2023-07-28 15:35:55 TRUE  TRUE  
+#> 3 slr.cli         climate config     15     1       1       0.291 2023-07-28 15:35:55 TRUE  TRUE  
+#> 4 tmp.cli         climate config     15     1       1       0.257 2023-07-28 15:35:55 TRUE  TRUE  
+#> 5 weather-sta.cli climate config     15     9       1       3.41  2023-07-28 15:35:55 TRUE  TRUE  
+#> 6 weather-wgn.cli climate config    298   173      13      31.9   2023-07-28 15:35:55 TRUE  TRUE  
+#> 7 wnd.cli         climate config     15     1       1       0.271 2023-07-28 15:35:55 TRUE  TRUE
 ```
 
 ## Open config files
@@ -311,11 +311,11 @@ Our example is not an “LTE”-type project, so we don’t have ‘hru-lte.hru�
 in our project directory. `rswat_docs` will find the match but
 `rswat_find`, which searches only loaded files, will not.
 
-Those who are new to SWAT+,or have trouble remembering its many variable
-names, can also search definition text for matches to keywords by
-setting `defs=TRUE`. For example, the search pattern
-‘evapotranspiration’ turns up both of the IPET-type parameters, along
-with a few other results for related processes
+Those who are new to SWAT+ or have trouble remembering its many variable
+names can also search definition text for matches to keywords by setting
+`defs=TRUE`. For example, the search pattern ‘evapotranspiration’ turns
+up both of the IPET-type parameters along with a few other results for
+related processes
 
 ``` r
 rswat_docs('evapotranspiration', defs=TRUE)
@@ -335,8 +335,8 @@ rswat_docs('evapotranspiration', defs=TRUE)
 # Editing
 
 So far we have only browsed the files for an existing project. The real
-power of rswat is in allowing R users to easily modifying the parameters
-in the SWAT+ config files on disk. rswat makes this more intuitive for R
+power of rswat is in allowing R users to easily modify the parameters in
+the SWAT+ config files on disk. rswat makes this more intuitive for R
 users by representing all config files as data frames
 
 ## Modify parameters
@@ -348,8 +348,7 @@ immediately obvious the next time you run a simulation.
 In the earlier `rswat()` summary, and in the existing output file above,
 we can see that the print period is currently set to a single date. This
 is because ‘print.prt’ is currently configured for a one year long
-burn-in period during which the output is muted. The code below shows
-how to remove this burn-in period via its parameter `nyskip`.
+burn-in period during which the output is muted.
 
 ``` r
 rswat_find('nyskip')
@@ -363,7 +362,9 @@ rswat_find('nyskip')
 ```
 
 To modify a parameter, get a copy of its data frame with `rswat_open`,
-change its value, and pass the data frame back to `rswat_write`
+change its value, and pass the data frame back to `rswat_write`. The
+code below shows how to remove this burn-in period via its parameter
+`nyskip`
 
 ``` r
 # copy the relevant table
@@ -393,7 +394,7 @@ subsequent calls to `rswat_open` will return the newest version.
 rswat()
 #> all requested files loaded
 #> rswat summary
-#> ○  simulator: not assigned
+#> →  simulator: C:/SWAT/SWATPlus/SWATPlusEditor/resources/app.asar.unpacked/static/swat_exe/rev60.5.7_64rel.exe
 #> →  directory: D:/rswat_data/swat/soda_test
 #>    --------- 
 #>  ⤷  file.cio: lists 63 config files in 19 groups 
@@ -408,8 +409,8 @@ rswat()
 #>    ⤷   avann: all
 ```
 
-Notice the summary shows the updated print range (which now matches
-‘time.sim’).
+Notice the summary shows the updated print range for ‘print.prt’ (now
+matching ‘time.sim’).
 
 rswat uses a reference class (R5) internally to keep an up-to-date
 database of information on the loaded SWAT+ project. This is important
@@ -460,7 +461,7 @@ to run the simulator and write output to the project directory.
 
 ``` r
 rswat_exec()
-#> SWAT+ simulation finished in 3.44 seconds
+#> SWAT+ simulation finished in 3.34 seconds
 #> 7 log and 64 output and 10 unknown files were written
 #> # A tibble: 81 × 2
 #>    file             type  
