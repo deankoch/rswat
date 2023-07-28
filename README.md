@@ -1,17 +1,39 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
 # rswat
 
 An R package for SWAT+ input/output file management
 
-## Getting started
+`rswat` edits and runs SWAT+ models. See our other project
+[`rswat.maker`](https://github.com/deankoch/rswat.maker) for an R-based
+workflow to build QSWAT+ projects and turn them into a SWAT+ models.
 
-Check out our [Introduction article](https://github.com/deankoch/rswat/blob/main/vignettes/articles/rswat_intro.md) for quick tour of the major features in `rswat`
+<!-- badges: start -->
+<!-- badges: end -->
 
-### Installation
+## Workflow
 
-You can install the development version of `rswat` in R with this call:
+`rswat` uses R data frames to represent SWAT+ the parameter tables on
+disk. Users can explore existing projecst, execute simulations, train
+models, and view the results, all from within the R-environment.
+
+## Example
+
+Check out our [Introduction
+article](https://github.com/deankoch/rswat/blob/main/vignettes/articles/rswat_intro.md)
+for quick tour of the major features in `rswat`
+
+<img src="vignettes/articles/rswat_intro_files/figure-gfm/source-project-1.png" width="100%" style="display: block; margin: auto;" />
+
+## Installation
+
+You can install the development version of rswat in R by doing:
 
 ``` r
 devtools::install_github('deankoch/rswat')
 ```
 
-We recommend also installing the latest SWAT+ bundle.
+Users who want to run simulations from rswat must also have a copy of
+the SWAT+ simulator executable on their local machine (this is included
+in the [SWAT+ installer](https://swat.tamu.edu/software/plus/)).
