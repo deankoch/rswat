@@ -13,7 +13,7 @@ rswat_restore(
 )
 }
 \arguments{
-\item{backup}{character, path to the}
+\item{backup}{character, path to the backup}
 
 \item{dest}{character, path to the desired output file or folder}
 

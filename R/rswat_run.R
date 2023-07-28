@@ -203,8 +203,8 @@ rswat_time = function(dates = NULL,
                       .db = .db) {
 
   # grab up-to-date copies of 'time.sim' and 'print.prt'
-  time.sim = rswat_open('time.sim', quiet=quiet, refresh=TRUE)
-  print.prt = rswat_open('print.prt', quiet=quiet, refresh=TRUE)
+  time.sim = rswat_open('time.sim', quiet=quiet)
+  print.prt = rswat_open('print.prt', quiet=quiet)
 
   # if requested, modify 'step', 'interval', and print table for daily timestep outputs
   if(daily)
